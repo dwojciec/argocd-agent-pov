@@ -2,11 +2,17 @@
 #   envsubst < values-managed.yaml.template > values-managed.yaml
 # Ou en un pipe vers Helm : envsubst < values-managed.yaml.template | helm install ... -f -
 #
-# Variables : PRINCIPAL_ROUTE_HOST (host seul, sans https://)
+# Variables : PRINCIPAL_ROUTE_HOST — hôte **seul** de la Route du Principal (sans https://, sans :443).
+# Aligné sur `helm show values openshift-helm-charts/redhat-argocd-agent` : `server` = hostname ;
+# le port HTTPS est `serverPort` (443 par défaut). Ne pas mettre https:// dans `server` : le chart
+# remplit `agent.server.address` + `agent.server.port` ; un `https://…:443` ici + port 443 → erreur
+# « …:443:443 » / too many colons dans les logs de l’agent.
 
 namespaceOverride: argocd
 agentMode: managed
-server: https://${PRINCIPAL_ROUTE_HOST}
+server: ${PRINCIPAL_ROUTE_HOST}
+# Chaîne (schéma Helm) : avec la CLI, utiliser --set-string serverPort=443, pas --set serverPort=443
+serverPort: "443"
 argoCdRedisSecretName: argocd-redis-initial-password
 argoCdRedisPasswordKey: admin.password
 redisAddress: argocd-redis:6379

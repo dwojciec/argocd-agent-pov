@@ -119,7 +119,7 @@ oc config use-context principal
 oc get route -n argocd
 ```
 
-Notez l’**hôte seul** de la Route (sans `https://`), par ex. `argocd-agent-principal-argocd.apps.cluster.example.com`. Renseignez-le dans **`envsubst.env`** (variable `PRINCIPAL_ROUTE_HOST`) pour générer les fichiers Helm et cert-manager à partir des `*.template`.
+Notez l’**hôte seul** de la Route (sans `https://`, sans **`:443`** à la fin). Renseignez-le dans **`envsubst.env`** (`PRINCIPAL_ROUTE_HOST`) pour les `*.template`. Le chart **`redhat-argocd-agent`** attend `server` = hostname et **`serverPort`** pour le HTTPS (voir `helm show values` : `server` / `serverPort`) ; le template du dépôt suit ce schéma — ne pas passer `https://…` dans `server` sous peine d’erreurs de connexion type **`…:443:443` / too many colons** dans les logs de l’agent.
 
 Découvrez le **nom DNS du service resource-proxy** (pour `argocd-agentctl` et les certificats) :
 
@@ -346,7 +346,10 @@ Le `destination.server` doit être `https://kubernetes.default.svc`. Après sync
 - **`no matches for kind "ArgoCD"` / `ensure CRDs are installed first` sur cluster1 ou cluster2** : attendre que l’opérateur OpenShift GitOps soit **Succeeded** (CRD `argocds.argoproj.io` présent) **avant** `oc apply -k cluster1/argocd` ou `cluster2/argocd`. Ce n’est pas lié au message `namespace/argocd unchanged`.
 - **Principal CrashLoop — secrets TLS manquants** : finaliser la section PKI (Option A ou B) ; vérifier `oc get certificate -n argocd` si cert-manager.
 - **Agent ne joint pas Redis** : NetworkPolicy, labels Redis/Agent, secret `argocd-redis` sur le spoke.
-- **Chart Helm / valeurs** : comparer avec [stderr.at — Helm redhat-argocd-agent](https://blog.stderr.at/gitopscollection/2026-01-14-argocd-agent/) (paramètres `server`, `redisAddress`, secrets Redis).
+- **Agent : `too many colons in address` / `…:443:443`** : le chart sépare **`server`** (hostname seul) et **`serverPort`** (`443`). Corrigez `cluster1/helm/values-managed.yaml.template` (dépôt à jour) puis `helm upgrade … -f` avec `PRINCIPAL_ROUTE_HOST` **sans** `https://` ni `:443`.
+- **`helm template … | grep` ne renvoie rien** : ne pas rediriger stderr vers `/dev/null` tant que vous déboguez ; vérifier `helm search repo redhat-argocd-agent` et `helm repo add openshift-helm-charts https://charts.openshift.io/`. Utiliser `grep -F "agent.server.address"` (chaîne littérale) plutôt qu’une regex fragile — voir T33 dans [`Etape-par-etape.md`](Etape-par-etape.md).
+- **`serverPort: Invalid type. Expected: string, given: integer`** : avec `--set serverPort=443`, Helm envoie un **entier** ; le schéma du chart exige une **chaîne**. Utiliser **`--set-string serverPort=443`** (ou dans un fichier values YAML : `serverPort: "443"` comme dans les `*.template` du dépôt).
+- **Chart Helm / valeurs** : comparer avec [stderr.at — Helm redhat-argocd-agent](https://blog.stderr.at/gitopscollection/2026-01-14-argocd-agent/) (paramètres `server`, `serverPort`, `redisAddress`, secrets Redis).
 - **Limitations OpenShift** (Route, LoadBalancer, NetworkPolicy) : voir [blog Red Hat — Limitations](https://developers.redhat.com/blog/2025/10/06/using-argo-cd-agent-openshift-gitops).
 
 ---

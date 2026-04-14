@@ -197,7 +197,7 @@ helm repo update
 
 1. `cp envsubst.env.example envsubst.env`
 2. Edit `envsubst.env`:
-   - **`PRINCIPAL_ROUTE_HOST`**: **host only** for the Principal Route (no `https://`), obtained after T12 with `oc get route -n argocd --context principal`.
+   - **`PRINCIPAL_ROUTE_HOST`**: **host only** for the Principal Route (no `https://`, no **`:443`** suffix), obtained after T12 with `oc get route -n argocd --context principal`. The `redhat-argocd-agent` chart uses **`server`** (hostname) and **`serverPort`** (`443` by default): do not put `https://` in the generated values from the template (see `cluster1/helm/values-managed.yaml.template`).
    - **`RESOURCE_PROXY_SERVER`**: `host:port` for the **resource-proxy** service on the principal (e.g. `…resource-proxy.argocd.svc.cluster.local:9090`), from `oc get svc -n argocd --context principal`.
 
 **Check**: `set -a && source envsubst.env && set +a && echo "$PRINCIPAL_ROUTE_HOST"`
@@ -560,6 +560,8 @@ oc apply -k cluster1/argocd
 
 **Goal**: deploy **Agent** pod in `managed` mode, connected to the Principal HTTPS URL.
 
+**Why `server` / `serverPort`**: the `redhat-argocd-agent` chart uses `server` (hostname, **no** `https://`) and `serverPort` as a **string** (often `"443"` — the Helm schema rejects an integer; on the CLI use `--set-string serverPort=443`). This repo’s template follows that; putting `https://` and a port inside `server` leads to targets like **`…:443:443`** in logs.
+
 **Actions** (variables loaded from `envsubst.env`):
 
 ```bash
@@ -570,7 +572,26 @@ envsubst < cluster1/helm/values-managed.yaml.template | \
     -f -
 ```
 
+If already installed with old values: `helm upgrade argocd-agent-managed openshift-helm-charts/redhat-argocd-agent --kube-context cluster1 -f -` with the same `envsubst` pipe.
+
 **Check**: agent pod `Running`; no Principal connection errors in logs.
+
+**Inspect rendered chart (if `helm template | grep` prints nothing)**: drop `2>/dev/null`—empty output often means **Helm failed** (chart not found, repo not added) and stderr does not match your pattern. Prefer a fixed-string grep for the ConfigMap key:
+
+```bash
+helm template check openshift-helm-charts/redhat-argocd-agent \
+  --namespace argocd \
+  --set namespaceOverride=argocd \
+  --set agentMode=managed \
+  --set server="${PRINCIPAL_ROUTE_HOST}" \
+  --set-string serverPort=443 \
+  --set argoCdRedisSecretName=argocd-redis-initial-password \
+  --set argoCdRedisPasswordKey=admin.password \
+  --set redisAddress=argocd-redis:6379 \
+  2>&1 | grep -F "agent.server.address" | head -5
+```
+
+**Clarification**: `helm template` **does not** talk to the cluster; `agent.server.address` is **exactly** whatever you pass to `--set server=…` (or from `envsubst` via the template). A test value like `principal.apps.example.com` appears verbatim in the output—it is not auto-detected from your environment. For a real install, `server` must be the **Principal Argo CD Agent Route host** (often `*.apps.<your-cluster>`), from `oc get route -n argocd --context principal`—**not** the OpenShift **console** URL (`console-openshift-console.apps…`), which is a different service entirely.
 
 **Automation**: template [`cluster1/helm/values-managed.yaml.template`](cluster1/helm/values-managed.yaml.template).
 
@@ -608,6 +629,8 @@ See T30–T32 replacing `cluster1` with `cluster2` and paths `cluster2/…` — 
 
 **Goal**: agent whose source of truth for `Application` resources is the **spoke**.
 
+Same **`server` / `serverPort`** pattern as managed (T33); see template comments.
+
 **Actions**
 
 ```bash
@@ -617,6 +640,8 @@ envsubst < cluster2/helm/values-autonomous.yaml.template | \
     --kube-context cluster2 \
     -f -
 ```
+
+If already installed: `helm upgrade argocd-agent-autonomous …` with the same pipe.
 
 **Automation**: [`cluster2/helm/values-autonomous.yaml.template`](cluster2/helm/values-autonomous.yaml.template).
 

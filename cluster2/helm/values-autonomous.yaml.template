@@ -1,10 +1,12 @@
 # Génération : set -a && source ../../envsubst.env && set +a
 #   envsubst < values-autonomous.yaml.template > values-autonomous.yaml
-# Variables : PRINCIPAL_ROUTE_HOST
+# Variables : PRINCIPAL_ROUTE_HOST — hôte seul (sans https://, sans :443). Voir values-managed.yaml.template.
 
 namespaceOverride: argocd
 agentMode: autonomous
-server: https://${PRINCIPAL_ROUTE_HOST}
+server: ${PRINCIPAL_ROUTE_HOST}
+# Chaîne (schéma Helm) : CLI → --set-string serverPort=443
+serverPort: "443"
 argoCdRedisSecretName: argocd-redis-initial-password
 argoCdRedisPasswordKey: admin.password
 redisAddress: argocd-redis:6379

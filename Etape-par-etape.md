@@ -197,7 +197,7 @@ helm repo update
 
 1. `cp envsubst.env.example envsubst.env`
 2. Éditer `envsubst.env` :
-   - **`PRINCIPAL_ROUTE_HOST`** : hôte **seul** de la Route du Principal (sans `https://`), obtenu après T12 avec `oc get route -n argocd --context principal`.
+   - **`PRINCIPAL_ROUTE_HOST`** : hôte **seul** de la Route du Principal (sans `https://`, sans suffixe **`:443`**), obtenu après T12 avec `oc get route -n argocd --context principal`. Les valeurs Helm du chart `redhat-argocd-agent` utilisent **`server`** (hostname) et **`serverPort`** (`443` par défaut) : ne pas préfixer par `https://` dans le fichier values généré à partir du template (voir `cluster1/helm/values-managed.yaml.template`).
    - **`RESOURCE_PROXY_SERVER`** : `host:port` du service **resource-proxy** sur le principal (ex. `…resource-proxy.argocd.svc.cluster.local:9090`), obtenu avec `oc get svc -n argocd --context principal`.
 
 **Vérification** : `set -a && source envsubst.env && set +a && echo "$PRINCIPAL_ROUTE_HOST"`
@@ -560,6 +560,8 @@ oc apply -k cluster1/argocd
 
 **Objectif** : déployer le pod **Agent** en mode `managed`, relié à l’URL HTTPS du Principal.
 
+**Pourquoi `server` / `serverPort`** : le chart `redhat-argocd-agent` expose `server` (hostname, **sans** `https://`) et `serverPort` comme **chaîne** (souvent `"443"` — le schéma Helm refuse un entier ; en CLI utiliser `--set-string serverPort=443`). Le template du dépôt les renseigne ainsi ; un `https://` + port dans `server` provoque des cibles du type **`…:443:443`** dans les logs.
+
 **Actions** (avec variables chargées depuis `envsubst.env`) :
 
 ```bash
@@ -570,7 +572,26 @@ envsubst < cluster1/helm/values-managed.yaml.template | \
     -f -
 ```
 
+Déjà installé avec d’anciennes valeurs : `helm upgrade argocd-agent-managed openshift-helm-charts/redhat-argocd-agent --kube-context cluster1 -f -` avec le même pipe `envsubst`.
+
 **Vérification** : pod agent `Running` ; pas d’erreurs de connexion au Principal dans les logs.
+
+**Contrôle local du manifeste Helm (si `helm template | grep` ne renvoie rien)** : enlever `2>/dev/null` — une sortie vide vient souvent d’une **erreur Helm** (chart introuvable, repo non ajouté) absorbée par le pipe. Exemple sans regex étendue (chaîne fixe, correspond à la clé dans le `ConfigMap` `*-agent-helm-params`) :
+
+```bash
+helm template check openshift-helm-charts/redhat-argocd-agent \
+  --namespace argocd \
+  --set namespaceOverride=argocd \
+  --set agentMode=managed \
+  --set server="${PRINCIPAL_ROUTE_HOST}" \
+  --set-string serverPort=443 \
+  --set argoCdRedisSecretName=argocd-redis-initial-password \
+  --set argoCdRedisPasswordKey=admin.password \
+  --set redisAddress=argocd-redis:6379 \
+  2>&1 | grep -F "agent.server.address" | head -5
+```
+
+**À ne pas confondre** : `helm template` **ne contacte pas** le cluster ; `agent.server.address` est **exactement** la valeur passée à `--set server=…` (ou issue de `envsubst` via le template). Si vous avez testé avec `principal.apps.example.com`, le rendu affichera ce nom — ce n’est pas une découverte automatique de votre plateforme. Pour le déploiement réel, `server` doit être l’hôte **de la Route du Principal Argo CD Agent** (souvent `*.apps.<votre-cluster>`), obtenu avec `oc get route -n argocd --context principal` — ce n’est **pas** l’URL de la **console** OpenShift (`console-openshift-console.apps…`), qui expose un tout autre service.
 
 **Automatisation** : modèle [`cluster1/helm/values-managed.yaml.template`](cluster1/helm/values-managed.yaml.template).
 
@@ -608,6 +629,8 @@ Voir T30–T32 en remplaçant `cluster1` par `cluster2` et les chemins `cluster2
 
 **Objectif** : agent dont la source de vérité des `Application` est le **spoke**.
 
+Même schéma **`server` / `serverPort`** que pour le managed (T33) : voir commentaires dans le template.
+
 **Actions**
 
 ```bash
@@ -617,6 +640,8 @@ envsubst < cluster2/helm/values-autonomous.yaml.template | \
     --kube-context cluster2 \
     -f -
 ```
+
+Déjà installé : `helm upgrade argocd-agent-autonomous …` avec le même pipe.
 
 **Automatisation** : [`cluster2/helm/values-autonomous.yaml.template`](cluster2/helm/values-autonomous.yaml.template).
 

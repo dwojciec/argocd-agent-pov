@@ -337,6 +337,18 @@ Deux chemins : **A — argocd-agentctl** (recommandé PoV) ou **B — cert-manag
 
 *Contexte principal : `--principal-context principal` ; pour les agents : `--agent-context cluster1` ou `cluster2`.*
 
+> **Prérequis spokes (T25 / T26)** : les commandes `pki propagate` et `pki issue agent …` créent des secrets dans le namespace **`argocd` sur chaque cluster agent**. Plus loin dans le guide, ce namespace n’apparaît sur le spoke qu’en **T30** (cluster1, Phase 3) ou à l’**équivalent Phase 5** pour cluster2 — si vous suivez les phases dans l’ordre strict, T25/T26 arrivent **avant** ces étapes, d’où l’erreur `namespaces "argocd" not found`. Créez au minimum les namespaces sur les spokes **avant** T25 (et avant T26 pour cluster2). Si vous utilisez [`principal/scripts/bootstrap-argocd-agentctl.sh`](principal/scripts/bootstrap-argocd-agentctl.sh), ce prérequis est **automatisé** au début du script.
+>
+> ```bash
+> oc config use-context cluster1
+> oc apply -k cluster1/namespaces
+> oc config use-context cluster2
+> oc apply -k cluster2/namespaces
+> ```
+>
+> Vérifications : `oc get ns argocd --context cluster1` et `oc get ns argocd --context cluster2`.  
+> *Note* : `oc project argocd` n’utilise que le **contexte courant** ; il ne prouve pas que `argocd` existe sur le cluster référencé par le contexte `cluster1` du kubeconfig.
+
 #### T20 — Initialiser la CA (Principal)
 
 **Objectif** : créer le secret `argocd-agent-ca` sur le principal.
@@ -417,7 +429,7 @@ argocd-agentctl agent create cluster1 \
   --resource-proxy-server "${RESOURCE_PROXY_SERVER}"
 ```
 
-**Vérification** : `oc get secret cluster-cluster1 -n argocd -l argocd.argoproj.io/secret-type=cluster`
+**Vérification** : `oc get secret cluster-cluster1 -n argocd --context principal` (on ne peut pas combiner un **nom** de ressource et un sélecteur `-l` avec `oc get`). Pour lister tous les secrets « cluster » : `oc get secret -n argocd --context principal -l argocd.argoproj.io/secret-type=cluster`.
 
 ---
 
@@ -472,7 +484,7 @@ argocd-agentctl pki issue agent cluster2 \
   --upsert
 ```
 
-**Automatisation des T20–T26** : tout enchaîner avec [`principal/scripts/bootstrap-argocd-agentctl.sh`](principal/scripts/bootstrap-argocd-agentctl.sh) après avoir exporté `PRINCIPAL_ROUTE_HOST`, `RESOURCE_PROXY_SERVER`, `PRINCIPAL_CTX`, `CLUSTER1_CTX`, `CLUSTER2_CTX`.
+**Automatisation des T20–T26** : tout enchaîner avec [`principal/scripts/bootstrap-argocd-agentctl.sh`](principal/scripts/bootstrap-argocd-agentctl.sh) après avoir exporté `PRINCIPAL_ROUTE_HOST`, `RESOURCE_PROXY_SERVER`, `PRINCIPAL_CTX`, `CLUSTER1_CTX`, `CLUSTER2_CTX`. Le script commence par appliquer `cluster1/namespaces` et `cluster2/namespaces` (prérequis PKI sur les spokes).
 
 ---
 
@@ -503,6 +515,8 @@ argocd-agentctl pki issue agent cluster2 \
 **Objectif** : installer OpenShift GitOps sur le spoke et une instance Argo CD **sans serveur UI** (Redis + repo-server + application-controller locaux).
 
 **Pourquoi** : l’agent pilote le contrôleur local ; l’UI reste sur le principal.
+
+**Note** : si vous avez déjà appliqué `cluster1/namespaces` avant la PKI (prérequis T25), la ligne correspondante ci‑dessous est **idempotente** (aucun changement).
 
 **Actions**
 
@@ -582,7 +596,7 @@ oc apply -f principal/applications/sample-application-managed-cluster1.yaml
 
 ### T50 — Base OpenShift GitOps + Argo CD workload + Redis + NetworkPolicy
 
-Voir T30–T32 en remplaçant `cluster1` par `cluster2` et les chemins `cluster2/…`.
+Voir T30–T32 en remplaçant `cluster1` par `cluster2` et les chemins `cluster2/…`. Si `cluster2/namespaces` a déjà été appliqué avant T26 (prérequis PKI), l’étape « namespaces » reste **idempotente**.
 
 ---
 
@@ -628,7 +642,7 @@ oc apply -f cluster2/applications/sample-application-autonomous-cluster2.yaml --
 |----|--------|---------|
 | T01–T04 | Préparation (contextes, outils, Helm, `envsubst.env`) | Local |
 | T10–T14 | Opérateur, namespaces, Argo CD Principal, AppProject, Redis | principal |
-| T20–T26 | PKI `argocd-agentctl` + agents cluster1 & cluster2 | principal + cluster1 + cluster2 |
+| T20–T26 | PKI `argocd-agentctl` + agents cluster1 & cluster2 (namespaces `argocd` sur les spokes requis avant T25/T26 — voir Phase 2A ; le script `bootstrap-argocd-agentctl.sh` les crée) | principal + cluster1 + cluster2 |
 | T30–T33 | Spoke managed (opérateur, Argo CD, NP, Helm managed) | cluster1 |
 | T40 | Application de test managed | principal → cluster1 |
 | T50–T51 | Spoke autonomous + Helm autonomous | cluster2 |

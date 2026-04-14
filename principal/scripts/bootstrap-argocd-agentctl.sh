@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # PKI et enregistrement des agents avec argocd-agentctl (cluster PRINCIPAL + contextes kubectl).
 # Prérequis : binaire argocd-agentctl, oc configuré avec les contextes PRINCIPAL / CLUSTER1 / CLUSTER2.
+# Le script applique d’abord cluster{1,2}/namespaces (namespace argocd sur les spokes) : sans cela,
+# pki propagate / pki issue agent échouent avec « namespaces "argocd" not found ».
 #
 # Usage :
 #   export PRINCIPAL_CTX=principal
@@ -21,6 +23,12 @@ PRINCIPAL_NS="${PRINCIPAL_NS:-argocd}"
 
 : "${PRINCIPAL_ROUTE_HOST:?Définir PRINCIPAL_ROUTE_HOST (host de la Route Principal)}"
 : "${RESOURCE_PROXY_SERVER:?Définir RESOURCE_PROXY_SERVER (host:port du service resource-proxy, ex. svc:9090)}"
+
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+
+echo ">>> Namespaces spoke (argocd) — prérequis pour pki propagate / issue agent"
+oc apply -k "${REPO_ROOT}/cluster1/namespaces" --context "${CLUSTER1_CTX}"
+oc apply -k "${REPO_ROOT}/cluster2/namespaces" --context "${CLUSTER2_CTX}"
 
 echo ">>> Init PKI (CA) sur ${PRINCIPAL_CTX}"
 argocd-agentctl pki init --principal-context "${PRINCIPAL_CTX}" --principal-namespace "${PRINCIPAL_NS}"

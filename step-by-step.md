@@ -337,6 +337,18 @@ Two paths: **A — argocd-agentctl** (recommended for PoV) or **B — cert-manag
 
 *Principal context: `--principal-context principal`; for agents: `--agent-context cluster1` or `cluster2`.*
 
+> **Spoke prerequisite (T25 / T26)**: `pki propagate` and `pki issue agent …` create secrets in the **`argocd` namespace on each agent cluster**. Later in this guide that namespace is created on the spoke in **T30** (cluster1, Phase 3) or the **Phase 5 equivalent** for cluster2 — with a strict phase order, T25/T26 run **before** those steps, which triggers `namespaces "argocd" not found`. Create at least the namespaces on the spokes **before** T25 (and before T26 for cluster2). If you use [`principal/scripts/bootstrap-argocd-agentctl.sh`](principal/scripts/bootstrap-argocd-agentctl.sh), this prerequisite is **automated** at the start of the script.
+>
+> ```bash
+> oc config use-context cluster1
+> oc apply -k cluster1/namespaces
+> oc config use-context cluster2
+> oc apply -k cluster2/namespaces
+> ```
+>
+> Checks: `oc get ns argocd --context cluster1` and `oc get ns argocd --context cluster2`.  
+> *Note*: `oc project argocd` only affects the **current** context; it does not prove `argocd` exists on the API server behind the `cluster1` kubeconfig context.
+
 #### T20 — Initialize CA (Principal)
 
 **Goal**: create `argocd-agent-ca` secret on the principal.
@@ -417,7 +429,7 @@ argocd-agentctl agent create cluster1 \
   --resource-proxy-server "${RESOURCE_PROXY_SERVER}"
 ```
 
-**Check**: `oc get secret cluster-cluster1 -n argocd -l argocd.argoproj.io/secret-type=cluster`
+**Check**: `oc get secret cluster-cluster1 -n argocd --context principal` (you cannot combine a resource **name** and a `-l` selector with `oc get`). To list all cluster secrets: `oc get secret -n argocd --context principal -l argocd.argoproj.io/secret-type=cluster`.
 
 ---
 
@@ -472,7 +484,7 @@ argocd-agentctl pki issue agent cluster2 \
   --upsert
 ```
 
-**Automation for T20–T26**: chain everything with [`principal/scripts/bootstrap-argocd-agentctl.sh`](principal/scripts/bootstrap-argocd-agentctl.sh) after exporting `PRINCIPAL_ROUTE_HOST`, `RESOURCE_PROXY_SERVER`, `PRINCIPAL_CTX`, `CLUSTER1_CTX`, `CLUSTER2_CTX`.
+**Automation for T20–T26**: chain everything with [`principal/scripts/bootstrap-argocd-agentctl.sh`](principal/scripts/bootstrap-argocd-agentctl.sh) after exporting `PRINCIPAL_ROUTE_HOST`, `RESOURCE_PROXY_SERVER`, `PRINCIPAL_CTX`, `CLUSTER1_CTX`, `CLUSTER2_CTX`. The script starts by applying `cluster1/namespaces` and `cluster2/namespaces` (PKI prerequisite on spokes).
 
 ---
 
@@ -503,6 +515,8 @@ argocd-agentctl pki issue agent cluster2 \
 **Goal**: install OpenShift GitOps on the spoke and an Argo CD instance **without a UI server** (local Redis + repo-server + application-controller).
 
 **Why**: the agent drives the local controller; the UI stays on the principal.
+
+**Note**: if you already applied `cluster1/namespaces` before PKI (T25 prerequisite), the matching line below is **idempotent** (no change).
 
 **Actions**
 
@@ -582,7 +596,7 @@ oc apply -f principal/applications/sample-application-managed-cluster1.yaml
 
 ### T50 — OpenShift GitOps base + Argo CD workload + Redis + NetworkPolicy
 
-See T30–T32 replacing `cluster1` with `cluster2` and paths `cluster2/…`.
+See T30–T32 replacing `cluster1` with `cluster2` and paths `cluster2/…`. If `cluster2/namespaces` was already applied before T26 (PKI prerequisite), the namespaces step remains **idempotent**.
 
 ---
 
@@ -628,7 +642,7 @@ oc apply -f cluster2/applications/sample-application-autonomous-cluster2.yaml --
 |----|------|---------|
 | T01–T04 | Preparation (contexts, tools, Helm, `envsubst.env`) | Local |
 | T10–T14 | Operator, namespaces, Argo CD Principal, AppProject, Redis | principal |
-| T20–T26 | PKI `argocd-agentctl` + cluster1 & cluster2 agents | principal + cluster1 + cluster2 |
+| T20–T26 | PKI `argocd-agentctl` + cluster1 & cluster2 agents (`argocd` namespaces on spokes required before T25/T26 — see Phase 2A; `bootstrap-argocd-agentctl.sh` creates them) | principal + cluster1 + cluster2 |
 | T30–T33 | Managed spoke (operator, Argo CD, NP, Helm managed) | cluster1 |
 | T40 | Managed test application | principal → cluster1 |
 | T50–T51 | Autonomous spoke + Helm autonomous | cluster2 |

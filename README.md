@@ -178,6 +178,8 @@ Deux approches possibles ; pour un PoV, **l’option A** est la plus simple.
 
 ### Option A — `argocd-agentctl` (recommandé PoV)
 
+Les commandes **`pki propagate`** et **`pki issue agent …`** écrivent des secrets dans le namespace **`argocd` sur chaque spoke**. Ce namespace doit donc exister sur **cluster1** et **cluster2** avant ces étapes. Le script ci‑dessous applique automatiquement `cluster1/namespaces` et `cluster2/namespaces` au début ; en **procédure manuelle** (sans script), faites-le avant T25 / T26 — voir [`Etape-par-etape.md`](Etape-par-etape.md) (encadré *Prérequis spokes*).
+
 1. Définissez les variables (mêmes noms que dans `envsubst.env.example` : `PRINCIPAL_ROUTE_HOST`, `RESOURCE_PROXY_SERVER` = **host:port** du resource-proxy — voir `oc get svc -n argocd`).
 
    ```bash
@@ -187,14 +189,14 @@ Deux approches possibles ; pour un PoV, **l’option A** est la plus simple.
    export CLUSTER2_CTX=cluster2
    ```
 
-2. Exécutez le script (depuis ce répertoire) :
+2. Exécutez le script (depuis ce répertoire ; les chemins `cluster*/namespaces` sont résolus depuis l’emplacement du script) :
 
    ```bash
    chmod +x principal/scripts/bootstrap-argocd-agentctl.sh
    ./principal/scripts/bootstrap-argocd-agentctl.sh
    ```
 
-Ce script : initialise la CA, émet les certificats principal / resource-proxy, crée la clé JWT, crée les agents **`cluster1`** et **`cluster2`**, propage la CA et émet les certificats client sur **cluster1** et **cluster2**.
+Ce script : crée si besoin les namespaces spoke, initialise la CA, émet les certificats principal / resource-proxy, crée la clé JWT, crée les agents **`cluster1`** et **`cluster2`**, propage la CA et émet les certificats client sur **cluster1** et **cluster2**.
 
 ### Option B — **cert-manager** (optionnel)
 
@@ -230,7 +232,10 @@ Toutes les commandes ci-dessous : **`oc config use-context cluster1`** (sauf ind
 
 ### 3.1 Opérateur, namespace, Argo CD workload
 
+Si vous avez déjà appliqué `cluster1/namespaces` avant l’étape PKI (voir **Étape 2**), la ligne `oc apply -k cluster1/namespaces` est **idempotente**.
+
 ```bash
+oc config use-context cluster1
 oc apply -k cluster1/operator
 # Attendre le CSV Succeeded
 oc apply -k cluster1/namespaces
@@ -283,6 +288,8 @@ Vérifiez sur le hub : `Application` `sample-managed-cluster1` dans le namespace
 
 ## Étape 5 — Cluster **cluster2** (autonomous)
 
+Si `cluster2/namespaces` a déjà été appliqué avant la PKI, l’étape namespaces reste **idempotente**.
+
 ```bash
 oc config use-context cluster2
 oc apply -k cluster2/operator
@@ -321,7 +328,7 @@ Le `destination.server` doit être `https://kubernetes.default.svc`. Après sync
 | Action | Cluster / contexte |
 |--------|---------------------|
 | `oc apply -k principal/…` | **principal** |
-| `bootstrap-argocd-agentctl.sh`, patch AppProject, `Application` managed | **principal** (PKI touche aussi cluster1/cluster2 via contextes) |
+| `bootstrap-argocd-agentctl.sh`, patch AppProject, `Application` managed | **principal** (le script crée d’abord les namespaces `argocd` sur les spokes ; la PKI touche cluster1/cluster2 via les contextes) |
 | `oc apply -k cluster1/…`, Helm managed | **cluster1** |
 | `oc apply -k cluster2/…`, Helm autonomous | **cluster2** |
 | `sample-application-managed-cluster1.yaml` | **principal** (namespace `managed-cluster`) |
@@ -331,6 +338,7 @@ Le `destination.server` doit être `https://kubernetes.default.svc`. Après sync
 
 ## Dépannage rapide
 
+- **`namespaces "argocd" not found` avec `argocd-agentctl pki propagate` / `pki issue agent`** : créer le namespace sur le spoke concerné (`oc apply -k cluster1/namespaces --context cluster1`, idem `cluster2`) **avant** ces commandes, ou utiliser le script `bootstrap-argocd-agentctl.sh` qui le fait automatiquement — détail : [`Etape-par-etape.md`](Etape-par-etape.md) (Phase 2A).
 - **Principal CrashLoop — secrets TLS manquants** : finaliser la section PKI (Option A ou B) ; vérifier `oc get certificate -n argocd` si cert-manager.
 - **Agent ne joint pas Redis** : NetworkPolicy, labels Redis/Agent, secret `argocd-redis` sur le spoke.
 - **Chart Helm / valeurs** : comparer avec [stderr.at — Helm redhat-argocd-agent](https://blog.stderr.at/gitopscollection/2026-01-14-argocd-agent/) (paramètres `server`, `redisAddress`, secrets Redis).

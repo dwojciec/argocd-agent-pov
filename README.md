@@ -237,10 +237,13 @@ Si vous avez déjà appliqué `cluster1/namespaces` avant l’étape PKI (voir *
 ```bash
 oc config use-context cluster1
 oc apply -k cluster1/operator
-# Attendre le CSV Succeeded
+# Indispensable avant cluster1/argocd : l’opérateur doit avoir posé les CRD (sinon : no matches for kind "ArgoCD")
+until oc get crd argocds.argoproj.io &>/dev/null; do echo "Attente CRD ArgoCD…"; sleep 5; done
 oc apply -k cluster1/namespaces
 oc apply -k cluster1/argocd
 ```
+
+Si vous voyez `ensure CRDs are installed first`, ce n’est **pas** parce que le namespace `argocd` existait déjà : allongez l’attente après `cluster1/operator` (ex. `oc get csv -n openshift-gitops-operator` jusqu’à **Succeeded**).
 
 ### 3.2 Secret Redis local
 
@@ -293,6 +296,7 @@ Si `cluster2/namespaces` a déjà été appliqué avant la PKI, l’étape names
 ```bash
 oc config use-context cluster2
 oc apply -k cluster2/operator
+until oc get crd argocds.argoproj.io &>/dev/null; do echo "Attente CRD ArgoCD…"; sleep 5; done
 oc apply -k cluster2/namespaces
 oc apply -k cluster2/argocd
 chmod +x cluster2/scripts/bootstrap-redis-secret-agent.sh
@@ -339,6 +343,7 @@ Le `destination.server` doit être `https://kubernetes.default.svc`. Après sync
 ## Dépannage rapide
 
 - **`namespaces "argocd" not found` avec `argocd-agentctl pki propagate` / `pki issue agent`** : créer le namespace sur le spoke concerné (`oc apply -k cluster1/namespaces --context cluster1`, idem `cluster2`) **avant** ces commandes, ou utiliser le script `bootstrap-argocd-agentctl.sh` qui le fait automatiquement — détail : [`Etape-par-etape.md`](Etape-par-etape.md) (Phase 2A).
+- **`no matches for kind "ArgoCD"` / `ensure CRDs are installed first` sur cluster1 ou cluster2** : attendre que l’opérateur OpenShift GitOps soit **Succeeded** (CRD `argocds.argoproj.io` présent) **avant** `oc apply -k cluster1/argocd` ou `cluster2/argocd`. Ce n’est pas lié au message `namespace/argocd unchanged`.
 - **Principal CrashLoop — secrets TLS manquants** : finaliser la section PKI (Option A ou B) ; vérifier `oc get certificate -n argocd` si cert-manager.
 - **Agent ne joint pas Redis** : NetworkPolicy, labels Redis/Agent, secret `argocd-redis` sur le spoke.
 - **Chart Helm / valeurs** : comparer avec [stderr.at — Helm redhat-argocd-agent](https://blog.stderr.at/gitopscollection/2026-01-14-argocd-agent/) (paramètres `server`, `redisAddress`, secrets Redis).

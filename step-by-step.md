@@ -518,12 +518,16 @@ argocd-agentctl pki issue agent cluster2 \
 
 **Note**: if you already applied `cluster1/namespaces` before PKI (T25 prerequisite), the matching line below is **idempotent** (no change).
 
+**Note (`no matches for kind "ArgoCD"` / `ensure CRDs are installed first`)**: this is **not** caused by the `argocd` namespace already existing (`unchanged` is fine). It means the **`ArgoCD`** CR is applied **before** the OpenShift GitOps operator has installed the **CRDs**. Wait for the operator install (CSV **Succeeded**) **before** `oc apply -k cluster1/argocd`.
+
 **Actions**
 
 ```bash
 oc config use-context cluster1
 oc apply -k cluster1/operator
-# Wait for CSV Succeeded
+# Required: wait for CRDs (e.g. until the CRD exists — or watch the CSV)
+until oc get crd argocds.argoproj.io &>/dev/null; do echo "Waiting for ArgoCD CRD (openshift-gitops-operator)…"; sleep 5; done
+# Alternative: oc get csv -n openshift-gitops-operator -w  then Ctrl+C when phase is Succeeded
 oc apply -k cluster1/namespaces
 oc apply -k cluster1/argocd
 ```
@@ -596,7 +600,7 @@ oc apply -f principal/applications/sample-application-managed-cluster1.yaml
 
 ### T50 — OpenShift GitOps base + Argo CD workload + Redis + NetworkPolicy
 
-See T30–T32 replacing `cluster1` with `cluster2` and paths `cluster2/…`. If `cluster2/namespaces` was already applied before T26 (PKI prerequisite), the namespaces step remains **idempotent**.
+See T30–T32 replacing `cluster1` with `cluster2` and paths `cluster2/…` — including **waiting for the** `argocds.argoproj.io` **CRD** after `oc apply -k cluster2/operator` and **before** `oc apply -k cluster2/argocd`. If `cluster2/namespaces` was already applied before T26 (PKI prerequisite), the namespaces step remains **idempotent**.
 
 ---
 

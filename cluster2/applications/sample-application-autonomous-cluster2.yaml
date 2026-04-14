@@ -1,0 +1,21 @@
+# Application « autonomous » : à appliquer sur le cluster CLUSTER2 uniquement.
+# destination.server pointe vers l’API Kubernetes locale du spoke.
+# Même démo minimale que le managed : helm-guestbook.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: sample-autonomous-cluster2
+  namespace: argocd
+spec:
+  project: default
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: default
+  source:
+    repoURL: https://github.com/argoproj/argocd-example-apps
+    path: helm-guestbook
+    targetRevision: HEAD
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

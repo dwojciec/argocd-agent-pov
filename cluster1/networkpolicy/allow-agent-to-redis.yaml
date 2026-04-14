@@ -1,0 +1,21 @@
+# Contourne la NetworkPolicy par défaut : autorise le pod Agent vers Redis (namespace argocd).
+# Vérifiez les labels avec : oc get pods -n argocd --show-labels
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: argocd-agent-allow-redis
+  namespace: argocd
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: argocd-redis
+  ingress:
+    - ports:
+        - protocol: TCP
+          port: 6379
+      from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: argocd-agent-agent
+  policyTypes:
+    - Ingress

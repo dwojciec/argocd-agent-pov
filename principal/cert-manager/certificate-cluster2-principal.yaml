@@ -1,0 +1,13 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: cluster2-principal
+  namespace: argocd
+spec:
+  secretName: cluster2-principal
+  issuerRef:
+    name: argocd-agent-ca
+    kind: Issuer
+  commonName: cluster2
+  dnsNames:
+    - cluster2.argocd-agent.local

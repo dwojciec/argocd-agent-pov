@@ -1,0 +1,14 @@
+# Certificat « côté principal » pour construire le secret cluster-cluster1 (mTLS vers l’agent cluster1).
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: cluster1-principal
+  namespace: argocd
+spec:
+  secretName: cluster1-principal
+  issuerRef:
+    name: argocd-agent-ca
+    kind: Issuer
+  commonName: cluster1
+  dnsNames:
+    - cluster1.argocd-agent.local

@@ -1,0 +1,24 @@
+# Exemple — AppProject pour un développeur (user1) en mode managed vers cluster1.
+# À adapter : sourceRepos, namespaces, name du cluster (doit correspondre au secret cluster sur le principal).
+# Référence : docs/utilisateur-developpeur-user1.md
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: project-user1
+  namespace: argocd
+spec:
+  description: "PoV — périmètre équipe user1 (destinations cluster1 uniquement)"
+  sourceRepos:
+    - "https://github.com/argoproj/argocd-example-apps"
+    # - "https://github.com/votre-org/votre-repo.git"
+  destinations:
+    # Secret cluster enregistré sur le principal : metadata/name=cluster1 → destination.name
+    - name: cluster1
+      namespace: "user1-*"
+    # Alternative plus stricte :
+    # - name: cluster1
+    #   namespace: user1-dev
+  sourceNamespaces:
+    - team-user1
+  # OrphanedResources: ...
+  # namespaceResourceWhitelist: ...

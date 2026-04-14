@@ -1,0 +1,18 @@
+# Ajustez spec.channel selon votre catalogue OpenShift (ex. gitops-1.19, latest).
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: openshift-gitops-operator
+  namespace: openshift-gitops-operator
+spec:
+  channel: gitops-1.19
+  installPlanApproval: Automatic
+  name: openshift-gitops-operator
+  source: redhat-operators
+  sourceNamespace: openshift-marketplace
+  config:
+    env:
+      - name: DISABLE_DEFAULT_ARGOCD_INSTANCE
+        value: "true"
+      - name: ARGOCD_CLUSTER_CONFIG_NAMESPACES
+        value: "*"

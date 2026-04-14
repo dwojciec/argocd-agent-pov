@@ -1,0 +1,12 @@
+# Génération : set -a && source ../../envsubst.env && set +a
+#   envsubst < values-managed.yaml.template > values-managed.yaml
+# Ou en un pipe vers Helm : envsubst < values-managed.yaml.template | helm install ... -f -
+#
+# Variables : PRINCIPAL_ROUTE_HOST (host seul, sans https://)
+
+namespaceOverride: argocd
+agentMode: managed
+server: https://${PRINCIPAL_ROUTE_HOST}
+argoCdRedisSecretName: argocd-redis-initial-password
+argoCdRedisPasswordKey: admin.password
+redisAddress: argocd-redis:6379

@@ -1,0 +1,16 @@
+# Génération : depuis la racine du dépôt, avec PRINCIPAL_ROUTE_HOST exporté :
+#   envsubst < principal/cert-manager/certificate-principal-tls.yaml.template | oc apply -f -
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: argocd-agent-principal-tls
+  namespace: argocd
+spec:
+  secretName: argocd-agent-principal-tls
+  issuerRef:
+    name: argocd-agent-ca
+    kind: Issuer
+  commonName: principal
+  dnsNames:
+    - argocd-agent-principal.argocd.svc.cluster.local
+    - ${PRINCIPAL_ROUTE_HOST}

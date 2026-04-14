@@ -1,0 +1,21 @@
+# Application « managed » : à appliquer sur le cluster PRINCIPAL uniquement.
+# Le champ destination.name doit correspondre au nom du secret cluster (cluster-cluster1 → name: cluster1).
+# Démo minimale : chart helm-guestbook (https://github.com/argoproj/argocd-example-apps/tree/master/helm-guestbook).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: sample-managed-cluster1
+  namespace: managed-cluster
+spec:
+  project: default
+  destination:
+    name: cluster1
+    namespace: default
+  source:
+    repoURL: https://github.com/argoproj/argocd-example-apps
+    path: helm-guestbook
+    targetRevision: HEAD
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

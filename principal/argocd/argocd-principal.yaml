@@ -1,0 +1,29 @@
+# Instance Argo CD « control plane » : UI/API sur le principal, contrôleur désactivé, Principal activé.
+# Contrainte connue : ne pas réutiliser une instance Argo CD existante avec controller activé pour le même namespace.
+apiVersion: argoproj.io/v1beta1
+kind: ArgoCD
+metadata:
+  name: argocd
+  namespace: argocd
+spec:
+  controller:
+    enabled: false
+  argoCDAgent:
+    principal:
+      enabled: true
+      auth: "mtls:CN=([^,]+)"
+      logLevel: info
+      namespace:
+        allowedNamespaces:
+          - "*"
+      tls:
+        insecureGenerate: false
+      jwt:
+        insecureGenerate: false
+  # Namespaces du hub où des Application peuvent être définies (Apps in any namespace).
+  sourceNamespaces:
+    - managed-cluster
+    - argocd
+  server:
+    route:
+      enabled: true

@@ -1,0 +1,14 @@
+# Ajustez le dnsNames si le service resource-proxy diffère selon la version de l’opérateur.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: argocd-agent-resource-proxy-tls
+  namespace: argocd
+spec:
+  secretName: argocd-agent-resource-proxy-tls
+  issuerRef:
+    name: argocd-agent-ca
+    kind: Issuer
+  commonName: resource-proxy
+  dnsNames:
+    - argocd-agent-resource-proxy.argocd.svc.cluster.local

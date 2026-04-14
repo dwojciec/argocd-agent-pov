@@ -1,0 +1,14 @@
+# Certificat client exporté vers cluster1 (renommé en argocd-agent-client-tls sur le spoke).
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: cluster1-agent
+  namespace: argocd
+spec:
+  secretName: cluster1-agent
+  issuerRef:
+    name: argocd-agent-ca
+    kind: Issuer
+  commonName: cluster1
+  dnsNames:
+    - cluster1.argocd-agent.local

@@ -1,0 +1,9 @@
+# Instance Argo CD « workload » sur le spoke : Redis + repo-server + application-controller ; pas de server UI.
+apiVersion: argoproj.io/v1beta1
+kind: ArgoCD
+metadata:
+  name: argocd
+  namespace: argocd
+spec:
+  server:
+    enabled: false

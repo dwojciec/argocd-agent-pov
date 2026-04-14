@@ -1,0 +1,137 @@
+# =============================================================================
+# Fichiers locaux / variables (ne jamais versionner les valeurs réelles)
+# =============================================================================
+envsubst.env
+.env
+.env.*
+!.env.example
+!*.env.example
+*.local.env
+.local/
+
+# =============================================================================
+# Fichiers générés depuis les *.template (peuvent contenir hôtes réels, TLS, etc.)
+# =============================================================================
+cluster1/helm/values-managed.yaml
+cluster2/helm/values-autonomous.yaml
+principal/cert-manager/certificate-principal-tls.yaml
+
+# Exports PKI / secrets depuis les scripts (README : ./exported/…)
+exported/
+export/
+*.export/
+
+# =============================================================================
+# Accès clusters (OpenShift / Kubernetes) — fuite = compromission d’infra
+# =============================================================================
+kubeconfig
+kubeconfig.*
+*.kubeconfig
+**/kubeconfig
+.kube/
+**/kube/config
+**/kube/*.config
+.oc/
+**/kubeconfig_user*
+**/kubeconfig_admin*
+**/kubeconfig_kubeadmin*
+**/auth/kubeconfig
+**/auth/kubeadmin-password
+**/auth/*.kubeconfig
+
+# Installateurs / pull secrets OpenShift
+.openshift_install*
+**/pull-secret.json
+**/pull-secret*.json
+*pull-secret*
+**/install-config.yaml
+**/metadata.json
+**/terraform.*.tfstate
+**/terraform.tfvars
+**/.terraform/
+**/.terraform.lock.hcl
+
+# =============================================================================
+# Clés, certificats privés, magasins de confiance personnels
+# =============================================================================
+*.key
+*.pem.key
+*_key.pem
+*_private.pem
+id_rsa
+id_rsa.*
+id_ed25519
+id_ed25519.*
+*.p12
+*.pfx
+*.jks
+*.keystore
+*.truststore
+*.csr
+*.srl
+*.der
+*.keytab
+*.krb5
+**/tls.key
+**/*-tls.key
+
+# Jetons / mots de passe en fichier
+*.token
+*_token
+*.password
+**/token
+**/access-token
+**/refresh-token
+**/client_secret*.json
+**/service-account*.json
+**/google-services.json
+**/credentials.json
+**/application_default_credentials.json
+
+# =============================================================================
+# Outils cloud / CI (clés API souvent dans le repo par erreur)
+# =============================================================================
+.aws/credentials
+.aws/config
+**/.aws/credentials
+**/gcloud/**/credentials.db
+**/gcloud/**/access_tokens.db
+**/.azure/
+**/.config/gcloud/
+**/.oci/
+
+# =============================================================================
+# Éditeurs, OS, sauvegardes
+# =============================================================================
+.DS_Store
+Thumbs.db
+.idea/
+*.iml
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+*.swp
+*.swo
+*~
+*.bak
+*.backup
+*.tmp
+.tmp/
+tmp/
+*.log
+
+# =============================================================================
+# Helm / dépendances locales
+# =============================================================================
+charts/*.tgz
+*.tgz
+
+# =============================================================================
+# Divers sensibles fréquents
+# =============================================================================
+*.vault
+*.age
+*.agekey
+.sops.yaml.local
+**/secrets.yaml
+!**/secrets.yaml.example

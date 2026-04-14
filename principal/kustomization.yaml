@@ -1,0 +1,8 @@
+# Optionnel : build global. En pratique, appliquez par étapes (voir README) :
+# 1) operator  2) namespaces  3) argocd
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - operator
+  - namespaces
+  - argocd

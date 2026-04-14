@@ -1,0 +1,10 @@
+# Nécessite d’abord : kubectl create secret tls argocd-agent-ca --cert=ca.crt --key=ca.key -n argocd
+# (génération openssl décrite dans le README.)
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: argocd-agent-ca
+  namespace: argocd
+spec:
+  ca:
+    secretName: argocd-agent-ca

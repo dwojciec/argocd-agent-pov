@@ -1,0 +1,10 @@
+# Génération : set -a && source ../../envsubst.env && set +a
+#   envsubst < values-autonomous.yaml.template > values-autonomous.yaml
+# Variables : PRINCIPAL_ROUTE_HOST
+
+namespaceOverride: argocd
+agentMode: autonomous
+server: https://${PRINCIPAL_ROUTE_HOST}
+argoCdRedisSecretName: argocd-redis-initial-password
+argoCdRedisPasswordKey: admin.password
+redisAddress: argocd-redis:6379

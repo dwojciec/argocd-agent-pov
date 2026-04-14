@@ -1,0 +1,30 @@
+# Exemple — RBAC Kubernetes sur le PRINCIPAL pour que user1 crée des Application dans team-user1.
+# Créer d'abord le namespace : oc create namespace team-user1
+# Puis : oc apply -f rbac-user1-applications-principal.yaml
+# Remplacer le subject (User/Group) selon votre IdP OpenShift.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: argocd-application-editor
+  namespace: team-user1
+rules:
+  - apiGroups: ["argoproj.io"]
+    resources: ["applications"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["argoproj.io"]
+    resources: ["appprojects"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: user1-argocd-applications
+  namespace: team-user1
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: argocd-application-editor
+subjects:
+  - kind: User
+    name: user1
+    apiGroup: rbac.authorization.k8s.io

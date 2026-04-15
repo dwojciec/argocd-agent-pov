@@ -8,7 +8,7 @@
 # remplit `agent.server.address` + `agent.server.port` ; un `https://…:443` ici + port 443 → erreur
 # « …:443:443 » / too many colons dans les logs de l’agent.
 
-namespaceOverride: argocd
+namespaceOverride: gitops-agent
 agentMode: managed
 server: ${PRINCIPAL_ROUTE_HOST}
 # Chaîne (schéma Helm) : avec la CLI, utiliser --set-string serverPort=443, pas --set serverPort=443

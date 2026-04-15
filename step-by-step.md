@@ -7,8 +7,8 @@ This document **complements** [`README.md`](README.md) by describing **each task
 | Cluster | Role |
 |---------|------|
 | **principal** | Hub: Argo CD + **Principal** component (central UI/API) |
-| **cluster1** | Spoke: **managed Agent** — `Application` resources are defined on the hub |
-| **cluster2** | Spoke: **autonomous Agent** — `Application` resources are defined on the spoke |
+| **managed-cluster** | Spoke: **managed Agent** — `Application` resources are defined on the hub |
+| **autonomous-cluster** | Spoke: **autonomous Agent** — `Application` resources are defined on the spoke |
 
 ---
 
@@ -29,7 +29,7 @@ This guide assumes you have **two or three OpenShift clusters**, at minimum vers
 | Scenario | Number of clusters | Coverage |
 |----------|-------------------|----------|
 | **Reduced** PoV | **2** (principal + one spoke) | Enough to validate **one** mode at a time: **managed** *or* **autonomous** (by reinstalling the agent or switching spokes). |
-| **Full** PoV (this document) | **3** (principal + cluster1 + cluster2) | **Managed** on cluster1 and **autonomous** on cluster2 in parallel. |
+| **Full** PoV (this document) | **3** (principal + managed-cluster + autonomous-cluster) | **Managed** on managed-cluster and **autonomous** on autonomous-cluster in parallel. |
 
 **Permissions**: **cluster-admin** access (or equivalent) on each relevant cluster.
 
@@ -54,14 +54,14 @@ flowchart TB
     MCR --- UI
   end
 
-  subgraph S1["Cluster cluster1 — spoke"]
+  subgraph S1["Cluster managed-cluster — spoke"]
     direction TB
     AM["Agent — managed"]
     W1["Argo CD workload<br/>controller / Redis / repo"]
     AM --- W1
   end
 
-  subgraph S2["Cluster cluster2 — spoke"]
+  subgraph S2["Cluster autonomous-cluster — spoke"]
     direction TB
     ACR["Application CR — autonomous<br/>(defined on the spoke)"]
     AA["Agent — autonomous"]
@@ -76,7 +76,7 @@ flowchart TB
   ACR -.->|observability| UI
 ```
 
-*Legend*: the **Principal** authenticates agents with **mTLS**. In **managed** mode, `Application` resources are created on the **principal** (`MCR`) and synced to the spoke. In **autonomous** mode, they are created on the **spoke** (`ACR` at the top of the cluster2 block, above the agent) and **surfaced** to the hub UI for observability. **Application CR** nodes are separated from **workloads** to avoid overlapping labels in the diagram.
+*Legend*: the **Principal** authenticates agents with **mTLS**. In **managed** mode, `Application` resources are created on the **principal** (`MCR`) and synced to the spoke. In **autonomous** mode, they are created on the **spoke** (`ACR` at the top of the autonomous-cluster block, above the agent) and **surfaced** to the hub UI for observability. **Application CR** nodes are separated from **workloads** to avoid overlapping labels in the diagram.
 
 ---
 
@@ -133,7 +133,9 @@ In practice, this maps to the following table (expanded in **Phase 0** and beyon
 
 **Goal**: target the hub and each spoke explicitly without ambiguity.
 
-**Why**: `argocd-agentctl` and scripts use `--principal-context` and `--agent-context`; short names (`principal`, `cluster1`, `cluster2`) reduce mistakes.
+**Why**: `argocd-agentctl` and scripts use `--principal-context` and `--agent-context`; short names (`principal`, `managed-cluster`, `autonomous-cluster`) reduce mistakes.
+
+> **Naming collision**: the **`managed-cluster`** kubeconfig context names the **managed spoke cluster**, while the hub also has a Kubernetes namespace **`managed-cluster`** where hub-scoped `Application` CRs live. They are unrelated objects.
 
 **Actions**
 
@@ -143,11 +145,11 @@ In practice, this maps to the following table (expanded in **Phase 0** and beyon
    ```bash
    oc config get-contexts
    oc config rename-context <old-principal-name> principal
-   oc config rename-context <old-cluster1-name> cluster1
-   oc config rename-context <old-cluster2-name> cluster2
+   oc config rename-context <old-managed-cluster-name> managed-cluster
+   oc config rename-context <old-autonomous-cluster-name> autonomous-cluster
    ```
 
-**Check**: `oc config get-contexts` shows `principal`, `cluster1`, `cluster2`.
+**Check**: `oc config get-contexts` shows `principal`, `managed-cluster`, `autonomous-cluster`.
 
 **Automation**: none (workstation configuration).
 
@@ -197,8 +199,8 @@ helm repo update
 
 1. `cp envsubst.env.example envsubst.env`
 2. Edit `envsubst.env`:
-   - **`PRINCIPAL_ROUTE_HOST`**: **host only** for the Principal Route (no `https://`, no **`:443`** suffix), obtained after T12 with `oc get route -n argocd --context principal`. The `redhat-argocd-agent` chart uses **`server`** (hostname) and **`serverPort`** (`443` by default): do not put `https://` in the generated values from the template (see `cluster1/helm/values-managed.yaml.template`).
-   - **`RESOURCE_PROXY_SERVER`**: `host:port` for the **resource-proxy** service on the principal (e.g. `…resource-proxy.argocd.svc.cluster.local:9090`), from `oc get svc -n argocd --context principal`.
+   - **`PRINCIPAL_ROUTE_HOST`**: **host only** for the Principal Route (no `https://`, no **`:443`** suffix), obtained after T12 with `oc get route -n gitops-control-plane --context principal`. The `redhat-argocd-agent` chart uses **`server`** (hostname) and **`serverPort`** (`443` by default): do not put `https://` in the generated values from the template (see `managed-cluster/helm/values-managed.yaml.template`).
+   - **`RESOURCE_PROXY_SERVER`**: `host:port` for the **resource-proxy** service on the principal (e.g. `…resource-proxy.gitops-control-plane.svc.cluster.local:9090`), from `oc get svc -n gitops-control-plane --context principal`.
 
 **Check**: `set -a && source envsubst.env && set +a && echo "$PRINCIPAL_ROUTE_HOST"`
 
@@ -237,7 +239,7 @@ oc get csv -n openshift-gitops-operator -w
 
 ---
 
-### T11 — Create `argocd` and `managed-cluster` namespaces
+### T11 — Create `gitops-control-plane` and `managed-cluster` namespaces
 
 **Goal**: isolate the Argo CD / Principal instance and host hub “managed” `Application` resources.
 
@@ -249,7 +251,7 @@ oc get csv -n openshift-gitops-operator -w
 oc apply -k principal/namespaces
 ```
 
-**Check**: `oc get ns argocd managed-cluster`.
+**Check**: `oc get ns gitops-control-plane managed-cluster`.
 
 **Automation**: [`principal/namespaces/`](principal/namespaces/).
 
@@ -267,11 +269,11 @@ oc apply -k principal/namespaces
 oc apply -k principal/argocd
 ```
 
-**Check**: routes and pods appear in `argocd`; note the Principal **Route** for `PRINCIPAL_ROUTE_HOST` (T04).
+**Check**: routes and pods appear in `gitops-control-plane`; note the Principal **Route** for `PRINCIPAL_ROUTE_HOST` (T04).
 
 ```bash
-oc get route -n argocd
-oc get pods -n argocd
+oc get route -n gitops-control-plane
+oc get pods -n gitops-control-plane
 ```
 
 **Automation**: [`principal/argocd/argocd-principal.yaml`](principal/argocd/argocd-principal.yaml).
@@ -282,25 +284,25 @@ oc get pods -n argocd
 
 ### T13 — Allow source namespaces on `AppProject` `default`
 
-**Goal**: let Argo CD manage `Application` resources in `managed-cluster` (and `argocd` if needed).
+**Goal**: let Argo CD manage `Application` resources in `managed-cluster` (and `gitops-control-plane` if needed).
 
 **Why**: without `sourceNamespaces`, `Application` resources outside the instance namespace may be rejected.
 
 **Actions** (equivalent to the script):
 
 ```bash
-oc patch appproject default -n argocd --type=merge \
-  -p '{"spec":{"sourceNamespaces":["managed-cluster","argocd"]}}'
+oc patch appproject default -n gitops-control-plane --type=merge \
+  -p '{"spec":{"sourceNamespaces":["managed-cluster","gitops-control-plane"]}}'
 ```
 
 Or run:
 
 ```bash
 chmod +x principal/appproject/patch-default-source-namespaces.sh
-./principal/appproject/patch-default-source-namespaces.sh argocd
+./principal/appproject/patch-default-source-namespaces.sh gitops-control-plane
 ```
 
-**Check**: `oc get appproject default -n argocd -o yaml | grep -A5 sourceNamespaces`
+**Check**: `oc get appproject default -n gitops-control-plane -o yaml | grep -A5 sourceNamespaces`
 
 **Automation**: [`principal/appproject/patch-default-source-namespaces.sh`](principal/appproject/patch-default-source-namespaces.sh).
 
@@ -315,19 +317,19 @@ chmod +x principal/appproject/patch-default-source-namespaces.sh
 **Manual actions** (same logic as the script):
 
 ```bash
-PW=$(oc get secret argocd-redis-initial-password -n argocd -o jsonpath='{.data.admin\.password}' | base64 -d)
-oc create secret generic argocd-redis -n argocd --from-literal=auth="$PW" --dry-run=client -o yaml | oc apply -f -
+PW=$(oc get secret argocd-redis-initial-password -n gitops-control-plane -o jsonpath='{.data.admin\.password}' | base64 -d)
+oc create secret generic argocd-redis -n gitops-control-plane --from-literal=auth="$PW" --dry-run=client -o yaml | oc apply -f -
 # Then restart Principal deployment if needed
-oc rollout restart deployment -n argocd -l app.kubernetes.io/name=argocd-agent-principal
+oc rollout restart deployment -n gitops-control-plane -l app.kubernetes.io/name=argocd-agent-principal
 ```
 
-**Check**: `oc get secret argocd-redis -n argocd`; Principal pod `Running`.
+**Check**: `oc get secret argocd-redis -n gitops-control-plane`; Principal pod `Running`.
 
 **Automation**: [`principal/scripts/bootstrap-redis-secret-principal.sh`](principal/scripts/bootstrap-redis-secret-principal.sh).
 
 ---
 
-## Phase 2 — PKI and agent registration (cluster1 + cluster2)
+## Phase 2 — PKI and agent registration (managed-cluster + autonomous-cluster)
 
 Two paths: **A — argocd-agentctl** (recommended for PoV) or **B — cert-manager** (optional). Tasks below detail **A**; end of phase references **B**.
 
@@ -335,19 +337,19 @@ Two paths: **A — argocd-agentctl** (recommended for PoV) or **B — cert-manag
 
 ### Phase 2A — PKI with `argocd-agentctl` (manual, command by command)
 
-*Principal context: `--principal-context principal`; for agents: `--agent-context cluster1` or `cluster2`.*
+*Principal context: `--principal-context principal`; for agents: `--agent-context managed-cluster` or `autonomous-cluster`.*
 
-> **Spoke prerequisite (T25 / T26)**: `pki propagate` and `pki issue agent …` create secrets in the **`argocd` namespace on each agent cluster**. Later in this guide that namespace is created on the spoke in **T30** (cluster1, Phase 3) or the **Phase 5 equivalent** for cluster2 — with a strict phase order, T25/T26 run **before** those steps, which triggers `namespaces "argocd" not found`. Create at least the namespaces on the spokes **before** T25 (and before T26 for cluster2). If you use [`principal/scripts/bootstrap-argocd-agentctl.sh`](principal/scripts/bootstrap-argocd-agentctl.sh), this prerequisite is **automated** at the start of the script.
+> **Spoke prerequisite (T25 / T26)**: `pki propagate` and `pki issue agent …` create secrets in **`gitops-agent` (managed spoke) or `argocd` (autonomous spoke)**. Later in this guide that namespace is created on the spoke in **T30** (managed-cluster, Phase 3) or the **Phase 5 equivalent** for autonomous-cluster — with a strict phase order, T25/T26 run **before** those steps, which triggers a **« namespaces … not found »** error. Create at least the namespaces on the spokes **before** T25 (and before T26 for autonomous-cluster). If you use [`principal/scripts/bootstrap-argocd-agentctl.sh`](principal/scripts/bootstrap-argocd-agentctl.sh), this prerequisite is **automated** at the start of the script.
 >
 > ```bash
-> oc config use-context cluster1
-> oc apply -k cluster1/namespaces
-> oc config use-context cluster2
-> oc apply -k cluster2/namespaces
+> oc config use-context managed-cluster
+> oc apply -k managed-cluster/namespaces
+> oc config use-context autonomous-cluster
+> oc apply -k autonomous-cluster/namespaces
 > ```
 >
-> Checks: `oc get ns argocd --context cluster1` and `oc get ns argocd --context cluster2`.  
-> *Note*: `oc project argocd` only affects the **current** context; it does not prove `argocd` exists on the API server behind the `cluster1` kubeconfig context.
+> Checks: `oc get ns gitops-agent --context managed-cluster` and `oc get ns argocd --context autonomous-cluster`.  
+> *Note*: `oc project gitops-agent` / `oc project argocd` only affects the **current** context; verify you are on the correct cluster for each kubeconfig context (`managed-cluster` vs `autonomous-cluster`).
 
 #### T20 — Initialize CA (Principal)
 
@@ -356,10 +358,10 @@ Two paths: **A — argocd-agentctl** (recommended for PoV) or **B — cert-manag
 **Command**
 
 ```bash
-argocd-agentctl pki init --principal-context principal --principal-namespace argocd
+argocd-agentctl pki init --principal-context principal --principal-namespace gitops-control-plane
 ```
 
-**Check**: `oc get secret argocd-agent-ca -n argocd --context principal`
+**Check**: `oc get secret argocd-agent-ca -n gitops-control-plane --context principal`
 
 ---
 
@@ -372,8 +374,8 @@ argocd-agentctl pki init --principal-context principal --principal-namespace arg
 ```bash
 argocd-agentctl pki issue principal \
   --principal-context principal \
-  --principal-namespace argocd \
-  --dns "localhost,argocd-agent-principal.argocd.svc.cluster.local,${PRINCIPAL_ROUTE_HOST}" \
+  --principal-namespace gitops-control-plane \
+  --dns "localhost,argocd-agent-principal.gitops-control-plane.svc.cluster.local,${PRINCIPAL_ROUTE_HOST}" \
   --upsert
 ```
 
@@ -385,12 +387,12 @@ argocd-agentctl pki issue principal \
 
 **Goal**: `argocd-agent-resource-proxy-tls` so Argo CD UI can talk to the resource proxy.
 
-**Command** (adjust `--dns` to the real resource-proxy service name; see `oc get svc -n argocd`)
+**Command** (adjust `--dns` to the real resource-proxy service name; see `oc get svc -n gitops-control-plane`)
 
 ```bash
 argocd-agentctl pki issue resource-proxy \
   --principal-context principal \
-  --principal-namespace argocd \
+  --principal-namespace gitops-control-plane \
   --dns "localhost,<resource-proxy-service-FQDN>" \
   --upsert
 ```
@@ -408,83 +410,83 @@ argocd-agentctl pki issue resource-proxy \
 ```bash
 argocd-agentctl jwt create-key \
   --principal-context principal \
-  --principal-namespace argocd \
+  --principal-namespace gitops-control-plane \
   --upsert
 ```
 
-**Check**: `oc get secret argocd-agent-jwt -n argocd --context principal`
+**Check**: `oc get secret argocd-agent-jwt -n gitops-control-plane --context principal`
 
 ---
 
-#### T24 — Register **cluster1** agent (Argo CD cluster secret)
+#### T24 — Register **managed-cluster** agent (Argo CD cluster secret)
 
-**Goal**: create `cluster-cluster1` secret on the principal, labeled as a remote cluster, pointing to the resource proxy.
+**Goal**: create `cluster-managed-cluster` secret on the principal, labeled as a remote cluster, pointing to the resource proxy.
 
 **Command** (`RESOURCE_PROXY_SERVER` = `host:port`, e.g. `…:9090`)
 
 ```bash
-argocd-agentctl agent create cluster1 \
+argocd-agentctl agent create managed-cluster \
   --principal-context principal \
-  --principal-namespace argocd \
+  --principal-namespace gitops-control-plane \
   --resource-proxy-server "${RESOURCE_PROXY_SERVER}"
 ```
 
-**Check**: `oc get secret cluster-cluster1 -n argocd --context principal` (you cannot combine a resource **name** and a `-l` selector with `oc get`). To list all cluster secrets: `oc get secret -n argocd --context principal -l argocd.argoproj.io/secret-type=cluster`.
+**Check**: `oc get secret cluster-managed-cluster -n gitops-control-plane --context principal` (you cannot combine a resource **name** and a `-l` selector with `oc get`). To list all cluster secrets: `oc get secret -n gitops-control-plane --context principal -l argocd.argoproj.io/secret-type=cluster`.
 
 ---
 
-#### T25 — Propagate CA to **cluster1** and issue client certificate
+#### T25 — Propagate CA to **managed-cluster** and issue client certificate
 
-**Goal**: on cluster1, `argocd-agent-ca` and `argocd-agent-client-tls` secret for mTLS.
+**Goal**: on managed-cluster, `argocd-agent-ca` and `argocd-agent-client-tls` secret for mTLS.
 
 **Commands**
 
 ```bash
 argocd-agentctl pki propagate \
   --principal-context principal \
-  --agent-context cluster1 \
-  --principal-namespace argocd \
-  --agent-namespace argocd
+  --agent-context managed-cluster \
+  --principal-namespace gitops-control-plane \
+  --agent-namespace gitops-agent
 
-argocd-agentctl pki issue agent cluster1 \
+argocd-agentctl pki issue agent managed-cluster \
   --principal-context principal \
-  --agent-context cluster1 \
-  --principal-namespace argocd \
-  --agent-namespace argocd \
+  --agent-context managed-cluster \
+  --principal-namespace gitops-control-plane \
+  --agent-namespace gitops-agent \
   --upsert
 ```
 
-**Check** (cluster1 context): `oc get secrets -n argocd | grep argocd-agent`
+**Check** (managed-cluster context): `oc get secrets -n gitops-agent | grep argocd-agent`
 
 ---
 
-#### T26 — Repeat for **cluster2** agent
+#### T26 — Repeat for **autonomous-cluster** agent
 
-**Goal**: same as T24–T25 with logical name `cluster2`.
+**Goal**: same as T24–T25 with logical name `autonomous-cluster`.
 
 **Commands**
 
 ```bash
-argocd-agentctl agent create cluster2 \
+argocd-agentctl agent create autonomous-cluster \
   --principal-context principal \
-  --principal-namespace argocd \
+  --principal-namespace gitops-control-plane \
   --resource-proxy-server "${RESOURCE_PROXY_SERVER}"
 
 argocd-agentctl pki propagate \
   --principal-context principal \
-  --agent-context cluster2 \
-  --principal-namespace argocd \
+  --agent-context autonomous-cluster \
+  --principal-namespace gitops-control-plane \
   --agent-namespace argocd
 
-argocd-agentctl pki issue agent cluster2 \
+argocd-agentctl pki issue agent autonomous-cluster \
   --principal-context principal \
-  --agent-context cluster2 \
-  --principal-namespace argocd \
+  --agent-context autonomous-cluster \
+  --principal-namespace gitops-control-plane \
   --agent-namespace argocd \
   --upsert
 ```
 
-**Automation for T20–T26**: chain everything with [`principal/scripts/bootstrap-argocd-agentctl.sh`](principal/scripts/bootstrap-argocd-agentctl.sh) after exporting `PRINCIPAL_ROUTE_HOST`, `RESOURCE_PROXY_SERVER`, `PRINCIPAL_CTX`, `CLUSTER1_CTX`, `CLUSTER2_CTX`. The script starts by applying `cluster1/namespaces` and `cluster2/namespaces` (PKI prerequisite on spokes).
+**Automation for T20–T26**: chain everything with [`principal/scripts/bootstrap-argocd-agentctl.sh`](principal/scripts/bootstrap-argocd-agentctl.sh) after exporting `PRINCIPAL_ROUTE_HOST`, `RESOURCE_PROXY_SERVER`, `PRINCIPAL_CTX`, `CLUSTER1_CTX`, `CLUSTER2_CTX`. The script starts by applying `managed-cluster/namespaces` and `autonomous-cluster/namespaces` (PKI prerequisite on spokes).
 
 ---
 
@@ -494,19 +496,19 @@ argocd-agentctl pki issue agent cluster2 \
 
 **Summary steps** (details in [`README.md`](README.md) — Option B):
 
-1. Create CA (openssl) and TLS secret `argocd-agent-ca` in `argocd`.
+1. Create CA (openssl) and TLS secret `argocd-agent-ca` in `gitops-control-plane`.
 2. Deploy `Issuer` + `Certificate` (`oc apply -k principal/cert-manager` after generating the principal cert with  
    `envsubst < principal/cert-manager/certificate-principal-tls.yaml.template | oc apply -f -`).
 3. Wait for `READY` on `Certificate` resources.
 4. Create `argocd-agent-jwt` (often only `argocd-agentctl jwt create-key`).
-5. Build `cluster-cluster1` / `cluster-cluster2` secrets: [`principal/scripts/create-cluster-secret-certmanager.sh`](principal/scripts/create-cluster-secret-certmanager.sh).
+5. Build `cluster-managed-cluster` / `cluster-autonomous-cluster` secrets: [`principal/scripts/create-cluster-secret-certmanager.sh`](principal/scripts/create-cluster-secret-certmanager.sh).
 6. Export to spokes: [`principal/scripts/export-certmanager-secrets-to-spoke.sh`](principal/scripts/export-certmanager-secrets-to-spoke.sh).
 
 ---
 
-## Phase 3 — **cluster1** (**managed** agent)
+## Phase 3 — **managed-cluster** (**managed** agent)
 
-*Context: **`cluster1`**.*
+*Context: **`managed-cluster`**.*
 
 ---
 
@@ -516,25 +518,25 @@ argocd-agentctl pki issue agent cluster2 \
 
 **Why**: the agent drives the local controller; the UI stays on the principal.
 
-**Note**: if you already applied `cluster1/namespaces` before PKI (T25 prerequisite), the matching line below is **idempotent** (no change).
+**Note**: if you already applied `managed-cluster/namespaces` before PKI (T25 prerequisite), the matching line below is **idempotent** (no change).
 
-**Note (`no matches for kind "ArgoCD"` / `ensure CRDs are installed first`)**: this is **not** caused by the `argocd` namespace already existing (`unchanged` is fine). It means the **`ArgoCD`** CR is applied **before** the OpenShift GitOps operator has installed the **CRDs**. Wait for the operator install (CSV **Succeeded**) **before** `oc apply -k cluster1/argocd`.
+**Note (`no matches for kind "ArgoCD"` / `ensure CRDs are installed first`)**: this is **not** caused by the `gitops-agent` namespace already existing (`unchanged` is fine). It means the **`ArgoCD`** CR is applied **before** the OpenShift GitOps operator has installed the **CRDs**. Wait for the operator install (CSV **Succeeded**) **before** `oc apply -k managed-cluster/argocd`.
 
 **Actions**
 
 ```bash
-oc config use-context cluster1
-oc apply -k cluster1/operator
+oc config use-context managed-cluster
+oc apply -k managed-cluster/operator
 # Required: wait for CRDs (e.g. until the CRD exists — or watch the CSV)
 until oc get crd argocds.argoproj.io &>/dev/null; do echo "Waiting for ArgoCD CRD (openshift-gitops-operator)…"; sleep 5; done
 # Alternative: oc get csv -n openshift-gitops-operator -w  then Ctrl+C when phase is Succeeded
-oc apply -k cluster1/namespaces
-oc apply -k cluster1/argocd
+oc apply -k managed-cluster/namespaces
+oc apply -k managed-cluster/argocd
 ```
 
-**Check**: `argocd` pods in `argocd` on cluster1 (no server Route required).
+**Check**: Argo CD workload pods in `gitops-agent` on managed-cluster (no server Route required).
 
-**Automation**: [`cluster1/operator`](cluster1/operator), [`cluster1/argocd`](cluster1/argocd).
+**Automation**: [`managed-cluster/operator`](managed-cluster/operator), [`managed-cluster/argocd`](managed-cluster/argocd).
 
 ---
 
@@ -542,7 +544,7 @@ oc apply -k cluster1/argocd
 
 **Goal**: same principle as T14 for the local Argo CD instance.
 
-**Automation**: [`cluster1/scripts/bootstrap-redis-secret-agent.sh`](cluster1/scripts/bootstrap-redis-secret-agent.sh).
+**Automation**: [`managed-cluster/scripts/bootstrap-redis-secret-agent.sh`](managed-cluster/scripts/bootstrap-redis-secret-agent.sh).
 
 ---
 
@@ -550,9 +552,9 @@ oc apply -k cluster1/argocd
 
 **Goal**: allow Agent pod traffic to Redis (workaround for default policies that are often too strict).
 
-**Actions**: `oc apply -k cluster1/networkpolicy` then verify Redis/Agent labels if needed.
+**Actions**: `oc apply -k managed-cluster/networkpolicy` then verify Redis/Agent labels if needed.
 
-**Automation**: [`cluster1/networkpolicy/`](cluster1/networkpolicy/).
+**Automation**: [`managed-cluster/networkpolicy/`](managed-cluster/networkpolicy/).
 
 ---
 
@@ -566,13 +568,14 @@ oc apply -k cluster1/argocd
 
 ```bash
 set -a && source envsubst.env && set +a
-envsubst < cluster1/helm/values-managed.yaml.template | \
+envsubst < managed-cluster/helm/values-managed.yaml.template | \
   helm install argocd-agent-managed openshift-helm-charts/redhat-argocd-agent \
-    --kube-context cluster1 \
+    --kube-context managed-cluster \
+    --namespace gitops-agent \
     -f -
 ```
 
-If already installed with old values: `helm upgrade argocd-agent-managed openshift-helm-charts/redhat-argocd-agent --kube-context cluster1 -f -` with the same `envsubst` pipe.
+If already installed with old values: `helm upgrade argocd-agent-managed openshift-helm-charts/redhat-argocd-agent --kube-context managed-cluster --namespace gitops-agent -f -` with the same `envsubst` pipe.
 
 **Check**: agent pod `Running`; no Principal connection errors in logs.
 
@@ -580,8 +583,8 @@ If already installed with old values: `helm upgrade argocd-agent-managed openshi
 
 ```bash
 helm template check openshift-helm-charts/redhat-argocd-agent \
-  --namespace argocd \
-  --set namespaceOverride=argocd \
+  --namespace gitops-agent \
+  --set namespaceOverride=gitops-agent \
   --set agentMode=managed \
   --set server="${PRINCIPAL_ROUTE_HOST}" \
   --set-string serverPort=443 \
@@ -591,9 +594,9 @@ helm template check openshift-helm-charts/redhat-argocd-agent \
   2>&1 | grep -F "agent.server.address" | head -5
 ```
 
-**Clarification**: `helm template` **does not** talk to the cluster; `agent.server.address` is **exactly** whatever you pass to `--set server=…` (or from `envsubst` via the template). A test value like `principal.apps.example.com` appears verbatim in the output—it is not auto-detected from your environment. For a real install, `server` must be the **Principal Argo CD Agent Route host** (often `*.apps.<your-cluster>`), from `oc get route -n argocd --context principal`—**not** the OpenShift **console** URL (`console-openshift-console.apps…`), which is a different service entirely.
+**Clarification**: `helm template` **does not** talk to the cluster; `agent.server.address` is **exactly** whatever you pass to `--set server=…` (or from `envsubst` via the template). A test value like `principal.apps.example.com` appears verbatim in the output—it is not auto-detected from your environment. For a real install, `server` must be the **Principal Argo CD Agent Route host** (often `*.apps.<your-cluster>`), from `oc get route -n gitops-control-plane --context principal`—**not** the OpenShift **console** URL (`console-openshift-console.apps…`), which is a different service entirely.
 
-**Automation**: template [`cluster1/helm/values-managed.yaml.template`](cluster1/helm/values-managed.yaml.template).
+**Automation**: template [`managed-cluster/helm/values-managed.yaml.template`](managed-cluster/helm/values-managed.yaml.template).
 
 ---
 
@@ -601,7 +604,7 @@ helm template check openshift-helm-charts/redhat-argocd-agent \
 
 ### T40 — Deploy an `Application` from the **principal**
 
-**Goal**: prove the hub owns the spec and **cluster1** runs the target deployment.
+**Goal**: prove the hub owns the spec and **managed-cluster** runs the target deployment.
 
 **Actions** (**principal** context):
 
@@ -609,19 +612,19 @@ helm template check openshift-helm-charts/redhat-argocd-agent \
 oc apply -f principal/applications/sample-application-managed-cluster1.yaml
 ```
 
-**Check**: on principal, `Application` `sample-managed-cluster1` in `managed-cluster`; **Synced** / **Healthy**. On cluster1, chart resources in `default`.
+**Check**: on principal, `Application` `sample-managed-demo` in `managed-cluster`; **Synced** / **Healthy**. On managed-cluster, chart resources in `default`.
 
 **Details**: [`docs/validation-applications.md`](docs/validation-applications.md).
 
 ---
 
-## Phase 5 — **cluster2** (**autonomous** agent)
+## Phase 5 — **autonomous-cluster** (**autonomous** agent)
 
-*Context: **`cluster2`**. Same sequence as Phase 3 (T30–T32), then Helm in **autonomous** mode.*
+*Context: **`autonomous-cluster`**. Same sequence as Phase 3 (T30–T32), then Helm in **autonomous** mode.*
 
 ### T50 — OpenShift GitOps base + Argo CD workload + Redis + NetworkPolicy
 
-See T30–T32 replacing `cluster1` with `cluster2` and paths `cluster2/…` — including **waiting for the** `argocds.argoproj.io` **CRD** after `oc apply -k cluster2/operator` and **before** `oc apply -k cluster2/argocd`. If `cluster2/namespaces` was already applied before T26 (PKI prerequisite), the namespaces step remains **idempotent**.
+Repeat **T30–T32** using context **`autonomous-cluster`** and paths **`autonomous-cluster/…`** (on this spoke the Argo CD workload stays in namespace **`argocd`**) — including **waiting for the** `argocds.argoproj.io` **CRD** after `oc apply -k autonomous-cluster/operator` and **before** `oc apply -k autonomous-cluster/argocd`. If `autonomous-cluster/namespaces` was already applied before T26 (PKI prerequisite), the namespaces step remains **idempotent**.
 
 ---
 
@@ -635,31 +638,32 @@ Same **`server` / `serverPort`** pattern as managed (T33); see template comments
 
 ```bash
 set -a && source envsubst.env && set +a
-envsubst < cluster2/helm/values-autonomous.yaml.template | \
+envsubst < autonomous-cluster/helm/values-autonomous.yaml.template | \
   helm install argocd-agent-autonomous openshift-helm-charts/redhat-argocd-agent \
-    --kube-context cluster2 \
+    --kube-context autonomous-cluster \
+    --namespace argocd \
     -f -
 ```
 
 If already installed: `helm upgrade argocd-agent-autonomous …` with the same pipe.
 
-**Automation**: [`cluster2/helm/values-autonomous.yaml.template`](cluster2/helm/values-autonomous.yaml.template).
+**Automation**: [`autonomous-cluster/helm/values-autonomous.yaml.template`](autonomous-cluster/helm/values-autonomous.yaml.template).
 
 ---
 
 ## Phase 6 — **Autonomous** validation
 
-### T60 — Create `Application` on **cluster2**
+### T60 — Create `Application` on **autonomous-cluster**
 
 **Goal**: demonstrate autonomous mode (`destination.server: https://kubernetes.default.svc`).
 
-**Actions** (**cluster2** context):
+**Actions** (**autonomous-cluster** context):
 
 ```bash
-oc apply -f cluster2/applications/sample-application-autonomous-cluster2.yaml --context cluster2
+oc apply -f autonomous-cluster/applications/sample-application-autonomous-cluster2.yaml --context autonomous-cluster
 ```
 
-**Check**: **Synced** status on cluster2; visibility from principal UI per autonomous mode behavior.
+**Check**: **Synced** status on autonomous-cluster; visibility from principal UI per autonomous mode behavior.
 
 **Details**: [`docs/validation-applications.md`](docs/validation-applications.md).
 
@@ -671,11 +675,11 @@ oc apply -f cluster2/applications/sample-application-autonomous-cluster2.yaml --
 |----|------|---------|
 | T01–T04 | Preparation (contexts, tools, Helm, `envsubst.env`) | Local |
 | T10–T14 | Operator, namespaces, Argo CD Principal, AppProject, Redis | principal |
-| T20–T26 | PKI `argocd-agentctl` + cluster1 & cluster2 agents (`argocd` namespaces on spokes required before T25/T26 — see Phase 2A; `bootstrap-argocd-agentctl.sh` creates them) | principal + cluster1 + cluster2 |
-| T30–T33 | Managed spoke (operator, Argo CD, NP, Helm managed) | cluster1 |
-| T40 | Managed test application | principal → cluster1 |
-| T50–T51 | Autonomous spoke + Helm autonomous | cluster2 |
-| T60 | Autonomous test application | cluster2 |
+| T20–T26 | PKI `argocd-agentctl` + managed-cluster & autonomous-cluster agents (`gitops-agent` / `argocd` namespaces on spokes required before T25/T26 — see Phase 2A; `bootstrap-argocd-agentctl.sh` creates them) | principal + managed-cluster + autonomous-cluster |
+| T30–T33 | Managed spoke (operator, Argo CD, NP, Helm managed) | managed-cluster |
+| T40 | Managed test application | principal → managed-cluster |
+| T50–T51 | Autonomous spoke + Helm autonomous | autonomous-cluster |
+| T60 | Autonomous test application | autonomous-cluster |
 
 ---
 
@@ -685,7 +689,7 @@ oc apply -f cluster2/applications/sample-application-autonomous-cluster2.yaml --
 |------|---------------------------|
 | PKI + agents | [`principal/scripts/bootstrap-argocd-agentctl.sh`](principal/scripts/bootstrap-argocd-agentctl.sh) |
 | Principal Redis | [`principal/scripts/bootstrap-redis-secret-principal.sh`](principal/scripts/bootstrap-redis-secret-principal.sh) |
-| Spoke Redis | [`cluster1/scripts/bootstrap-redis-secret-agent.sh`](cluster1/scripts/bootstrap-redis-secret-agent.sh), [`cluster2/scripts/bootstrap-redis-secret-agent.sh`](cluster2/scripts/bootstrap-redis-secret-agent.sh) |
+| Spoke Redis | [`managed-cluster/scripts/bootstrap-redis-secret-agent.sh`](managed-cluster/scripts/bootstrap-redis-secret-agent.sh), [`autonomous-cluster/scripts/bootstrap-redis-secret-agent.sh`](autonomous-cluster/scripts/bootstrap-redis-secret-agent.sh) |
 | AppProject | [`principal/appproject/patch-default-source-namespaces.sh`](principal/appproject/patch-default-source-namespaces.sh) |
 | Cert-manager (optional) | [`create-cluster-secret-certmanager.sh`](principal/scripts/create-cluster-secret-certmanager.sh), [`export-certmanager-secrets-to-spoke.sh`](principal/scripts/export-certmanager-secrets-to-spoke.sh) |
 

@@ -1,10 +1,10 @@
 # Non-`cluster-admin` user — creating applications (e.g. `user1`)
 
-This document describes what the **platform admin** must prepare so a **developer / application owner** (here **`user1`**) can **create and manage their own** Argo CD **applications** that **deploy to spoke cluster `cluster1`**, in **managed Agent mode**, **without** operating the agent, Principal, or certificates.
+This document describes what the **platform admin** must prepare so a **developer / application owner** (here **`user1`**) can **create and manage their own** Argo CD **applications** that **deploy to spoke cluster `managed-cluster`**, in **managed Agent mode**, **without** operating the agent, Principal, or certificates.
 
 > **Key point — managed mode**  
-> The source of truth for `Application` resources is the **principal (hub) cluster**. `user1` therefore interacts with **Argo CD on the principal** (UI, `argocd` CLI, or `kubectl` in an allowed namespace). They do **not** “only” create the `Application` on `cluster1` in the strict GitOps sense: the `Application` manifest lives on the **hub**; **workload** deployment happens **on `cluster1`** via the agent.  
-> If the customer requires that `user1` **never** touches the principal, **autonomous** mode on a spoke is more appropriate (out of scope for this note, which focuses on **managed + cluster1**).
+> The source of truth for `Application` resources is the **principal (hub) cluster**. `user1` therefore interacts with **Argo CD on the principal** (UI, `argocd` CLI, or `kubectl` in an allowed namespace). They do **not** “only” create the `Application` on `managed-cluster` in the strict GitOps sense: the `Application` manifest lives on the **hub**; **workload** deployment happens **on `managed-cluster`** via the agent.  
+> If the customer requires that `user1` **never** touches the principal, **autonomous** mode on a spoke is more appropriate (out of scope for this note, which focuses on **managed** mode on spoke **`managed-cluster`**).
 
 ---
 
@@ -40,8 +40,8 @@ Create an **`AppProject`** (e.g. `project-user1`) that **scopes** `user1`:
 
 - **`sourceRepos`**: only Git repositories allowed for that team (avoid `*` in production).
 - **`destinations`**:  
-  - `name: cluster1` (cluster secret registered on the principal) **or** cluster URL if you use that pattern;  
-  - **target namespaces** on `cluster1`: e.g. `user1-dev`, `user1-int` — **not** `*` in production.
+  - `name: managed-cluster` (cluster secret registered on the principal) **or** cluster URL if you use that pattern;  
+  - **target namespaces** on `managed-cluster`: e.g. `user1-dev`, `user1-int` — **not** `*` in production.
 - **`namespaceResourceWhitelist`** / **blacklist** per your policy (what the app may deploy).
 - **`sourceNamespaces`**: principal namespaces where `user1` may create `Application` resources (e.g. `team-user1`).
 
@@ -104,14 +104,14 @@ subjects:
 
 > Adjust `kind: User` / `Group` per your OpenShift identity provider.
 
-### 2.6 Rights on **cluster1** (spoke) — **sync** account, not `user1`
+### 2.6 Rights on **managed-cluster** (spoke) — **sync** account, not `user1`
 
-**Deployment** is performed by the Argo CD **application-controller** (on the spoke) / agent. The cluster-admin must ensure the **ServiceAccount** used to apply resources on `cluster1` has rights on **target namespaces** (e.g. `user1-dev`).
+**Deployment** is performed by the Argo CD **application-controller** (on the spoke) / agent. The cluster-admin must ensure the **ServiceAccount** used to apply resources on `managed-cluster` has rights on **target namespaces** (e.g. `user1-dev`).
 
 - Either **ClusterRole** + **ClusterRoleBinding** (broad — avoid except in PoV).
 - Or **Role** + **RoleBinding** per target namespace (recommended).
 
-**`user1` generally does not need** `cluster-admin` on `cluster1` for sync to work. If you want `user1` to **debug** (`oc get pod` in their namespace), grant a **view** or **edit** **Role** scoped to **their namespaces** on `cluster1`.
+**`user1` generally does not need** `cluster-admin` on `managed-cluster` for sync to work. If you want `user1` to **debug** (`oc get pod` in their namespace), grant a **view** or **edit** **Role** scoped to **their namespaces** on `managed-cluster`.
 
 ---
 
@@ -119,7 +119,7 @@ subjects:
 
 1. Log in to **Argo CD UI** on the **principal** (or `argocd` CLI with token).
 2. Create an **Application** in project **`project-user1`**, with:
-   - **destination**: `name: cluster1` (or admin-approved equivalent) and **namespace** allowed on `cluster1` (e.g. `user1-dev`).
+   - **destination**: `name: managed-cluster` (or admin-approved equivalent) and **namespace** allowed on `managed-cluster` (e.g. `user1-dev`).
    - **source**: Git repo allowed by `sourceRepos`.
 3. Trigger synchronization or enable automated sync per project policy.
 
@@ -131,8 +131,8 @@ They **do not** configure: agent, Principal, certificates, `cluster` secrets, or
 
 1. Briefly show **cluster-admin** console: agents, platform namespaces.
 2. Log in as **`user1`** on Argo CD: show admin menus are not available.
-3. Create a demo application (e.g. `helm-guestbook`) targeting **`cluster1`** / team namespace.
-4. Show sync and pods on **`cluster1`** in the target namespace.
+3. Create a demo application (e.g. `helm-guestbook`) targeting **`managed-cluster`** / team namespace.
+4. Show sync and pods on **`managed-cluster`** in the target namespace.
 5. Emphasize: **same pattern** for real workloads, within `AppProject` limits.
 
 ---
@@ -143,8 +143,8 @@ They **do not** configure: agent, Principal, certificates, `cluster` secrets, or
 |---------|--------|
 | `AppProject` too permissive (`*`) | `user1` may target other clusters or namespaces. |
 | Inconsistent `sourceNamespaces` | Cannot create `Application` in the team namespace. |
-| Sync SA without rights on `cluster1` | Sync **Failed** — often mistaken for “Argo CD is broken” when it is spoke RBAC. |
-| Managed vs autonomous confusion | In **managed** mode, `Application` is created on the **hub**; telling users they create it “on cluster1” can be misleading — clarify in the demo. |
+| Sync SA without rights on `managed-cluster` | Sync **Failed** — often mistaken for “Argo CD is broken” when it is spoke RBAC. |
+| Managed vs autonomous confusion | In **managed** mode, `Application` is created on the **hub**; telling users they create it “on managed-cluster” can be misleading — clarify in the demo. |
 
 ---
 

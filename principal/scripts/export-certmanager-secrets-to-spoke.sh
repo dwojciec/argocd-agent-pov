@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # Génère des manifests à appliquer sur le spoke (cert-manager) : client TLS renommé + CA sans clé privée.
 # Prérequis : yq (https://github.com/mikefarah/yq/) v4.
-# Usage : ./export-certmanager-secrets-to-spoke.sh cluster1-agent ./out
+# Usage : ./export-certmanager-secrets-to-spoke.sh managed-cluster-agent ./out
 set -euo pipefail
-AGENT_CERT_SECRET="${1:?ex: cluster1-agent}"
+AGENT_CERT_SECRET="${1:?ex: managed-cluster-agent}"
 OUTDIR="${2:-./exported-secrets}"
-NS="${3:-argocd}"
+NS="${3:-gitops-control-plane}"
 
 mkdir -p "${OUTDIR}"
 

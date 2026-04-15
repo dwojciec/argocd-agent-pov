@@ -4,7 +4,7 @@ resources:
   - issuer-argocd-agent-ca.yaml
   # certificate-principal-tls : générer avec envsubst depuis certificate-principal-tls.yaml.template puis oc apply -f -
   - certificate-resource-proxy-tls.yaml
-  - certificate-cluster1-principal.yaml
-  - certificate-cluster1-agent.yaml
-  - certificate-cluster2-principal.yaml
-  - certificate-cluster2-agent.yaml
+  - certificate-managed-cluster-principal.yaml
+  - certificate-managed-cluster-agent.yaml
+  - certificate-autonomous-cluster-principal.yaml
+  - certificate-autonomous-cluster-agent.yaml

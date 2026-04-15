@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # Construit le secret Argo CD cluster-<name> à partir d’un secret TLS cert-manager (principal).
 # Prérequis : jq, oc
-# Usage : ./create-cluster-secret-certmanager.sh cluster1 cluster1-principal
+# Usage : ./create-cluster-secret-certmanager.sh managed-cluster managed-cluster-principal
 #         Variable optionnelle PROXY_SVC (défaut ci-dessous, host:port du resource-proxy).
 set -euo pipefail
-NAME="${1:?nom logique agent (ex: cluster1)}"
-TLS_SECRET="${2:?nom du secret TLS (ex: cluster1-principal)}"
-NS="${3:-argocd}"
-PROXY_SVC="${PROXY_SVC:-argocd-agent-resource-proxy.argocd.svc.cluster.local:9090}"
+NAME="${1:?nom logique agent (ex: managed-cluster)}"
+TLS_SECRET="${2:?nom du secret TLS (ex: managed-cluster-principal)}"
+NS="${3:-gitops-control-plane}"
+PROXY_SVC="${PROXY_SVC:-argocd-agent-resource-proxy.gitops-control-plane.svc.cluster.local:9090}"
 
 AGENT_CA_B64="$(oc get secret "${TLS_SECRET}" -n "${NS}" -o jsonpath='{.data.ca\.crt}')"
 AGENT_TLS_B64="$(oc get secret "${TLS_SECRET}" -n "${NS}" -o jsonpath='{.data.tls\.crt}')"

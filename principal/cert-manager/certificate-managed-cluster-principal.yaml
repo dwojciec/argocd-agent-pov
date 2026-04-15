@@ -1,0 +1,14 @@
+# Certificat « côté principal » pour construire le secret cluster-managed-cluster (mTLS vers l’agent managed-cluster).
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: managed-cluster-principal
+  namespace: gitops-control-plane
+spec:
+  secretName: managed-cluster-principal
+  issuerRef:
+    name: argocd-agent-ca
+    kind: Issuer
+  commonName: managed-cluster
+  dnsNames:
+    - managed-cluster.argocd-agent.local

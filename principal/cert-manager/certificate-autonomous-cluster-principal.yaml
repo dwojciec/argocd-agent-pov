@@ -1,0 +1,13 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: autonomous-cluster-principal
+  namespace: gitops-control-plane
+spec:
+  secretName: autonomous-cluster-principal
+  issuerRef:
+    name: argocd-agent-ca
+    kind: Issuer
+  commonName: autonomous-cluster
+  dnsNames:
+    - autonomous-cluster.argocd-agent.local

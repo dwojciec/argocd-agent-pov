@@ -1,0 +1,14 @@
+# Certificat client exporté vers managed-cluster (renommé en argocd-agent-client-tls sur le spoke).
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: managed-cluster-agent
+  namespace: gitops-control-plane
+spec:
+  secretName: managed-cluster-agent
+  issuerRef:
+    name: argocd-agent-ca
+    kind: Issuer
+  commonName: managed-cluster
+  dnsNames:
+    - managed-cluster.argocd-agent.local

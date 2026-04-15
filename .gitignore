@@ -12,8 +12,8 @@ envsubst.env
 # =============================================================================
 # Fichiers générés depuis les *.template (peuvent contenir hôtes réels, TLS, etc.)
 # =============================================================================
-cluster1/helm/values-managed.yaml
-cluster2/helm/values-autonomous.yaml
+managed-cluster/helm/values-managed.yaml
+autonomous-cluster/helm/values-autonomous.yaml
 principal/cert-manager/certificate-principal-tls.yaml
 
 # Exports PKI / secrets depuis les scripts (README : ./exported/…)

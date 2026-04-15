@@ -3,7 +3,7 @@ apiVersion: argoproj.io/v1beta1
 kind: ArgoCD
 metadata:
   name: argocd
-  namespace: argocd
+  namespace: gitops-agent
 spec:
   server:
     enabled: false

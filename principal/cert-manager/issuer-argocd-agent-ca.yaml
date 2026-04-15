@@ -1,10 +1,10 @@
-# Nécessite d’abord : kubectl create secret tls argocd-agent-ca --cert=ca.crt --key=ca.key -n argocd
+# Nécessite d’abord : kubectl create secret tls argocd-agent-ca --cert=ca.crt --key=ca.key -n gitops-control-plane
 # (génération openssl décrite dans le README.)
 apiVersion: cert-manager.io/v1
 kind: Issuer
 metadata:
   name: argocd-agent-ca
-  namespace: argocd
+  namespace: gitops-control-plane
 spec:
   ca:
     secretName: argocd-agent-ca

@@ -1,6 +1,6 @@
 # Guide étape par étape — Argo CD Agent (PoV multicluster)
 
-Ce document **complète** le [`README.md`](README.md) en décrivant **chaque tâche** : objectif, contexte (quel cluster), actions manuelles détaillées, et **référence** vers l’automatisation déjà présente dans le dépôt (scripts, `*.template`).
+Ce document **complète** le [`README-french.md`](README-french.md) en décrivant **chaque tâche** : objectif, contexte (quel cluster), actions manuelles détaillées, et **référence** vers l’automatisation déjà présente dans le dépôt (scripts, `*.template`).
 
 **Architecture visée**
 
@@ -186,7 +186,7 @@ helm repo update
 
 **Vérification** : `helm search repo redhat-argocd-agent` liste le chart.
 
-**Automatisation** : indiquée dans [`README.md`](README.md) (Étape 0).
+**Automatisation** : indiquée dans [`README-french.md`](README-french.md) (Étape 0).
 
 ---
 
@@ -495,7 +495,7 @@ argocd-agentctl pki issue agent autonomous-cluster \
 
 **Objectif** : même état final des secrets, via l’opérateur cert-manager sur le principal.
 
-**Étapes résumées** (détail dans [`README.md`](README.md) — Option B) :
+**Étapes résumées** (détail dans [`README-french.md`](README-french.md) — Option B) :
 
 1. Créer la CA (openssl) et le secret TLS `argocd-agent-ca` dans `gitops-control-plane`.
 2. Déployer `Issuer` + `Certificate` (`oc apply -k principal/cert-manager` après génération du certificat principal avec  
@@ -693,7 +693,7 @@ oc apply -f autonomous-cluster/applications/sample-application-autonomous-cluste
 | AppProject | [`principal/appproject/patch-default-source-namespaces.sh`](principal/appproject/patch-default-source-namespaces.sh) |
 | Cert-manager (optionnel) | [`create-cluster-secret-certmanager.sh`](principal/scripts/create-cluster-secret-certmanager.sh), [`export-certmanager-secrets-to-spoke.sh`](principal/scripts/export-certmanager-secrets-to-spoke.sh) |
 
-Pour la procédure condensée et les liens externes, se reporter au [`README.md`](README.md).
+Pour la procédure condensée et les liens externes, se reporter au [`README-french.md`](README-french.md). La version anglaise du dépôt est dans [`README.md`](README.md).
 
 ---
 

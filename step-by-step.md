@@ -693,7 +693,7 @@ oc apply -f autonomous-cluster/applications/sample-application-autonomous-cluste
 | AppProject | [`principal/appproject/patch-default-source-namespaces.sh`](principal/appproject/patch-default-source-namespaces.sh) |
 | Cert-manager (optional) | [`create-cluster-secret-certmanager.sh`](principal/scripts/create-cluster-secret-certmanager.sh), [`export-certmanager-secrets-to-spoke.sh`](principal/scripts/export-certmanager-secrets-to-spoke.sh) |
 
-For the condensed procedure and external links, see [`README.md`](README.md).
+For the condensed procedure and external links, see [`README.md`](README.md). French readers may prefer [`README-french.md`](README-french.md).
 
 ---
 

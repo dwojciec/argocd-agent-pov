@@ -77,7 +77,7 @@ argocd-agent-multicluster-pov/
   - **Red Hat (recommended with the OpenShift GitOps operator)**: download from the [Content Gateway — openshift-gitops](https://developers.redhat.com/content-gateway/rest/browse/pub/cgw/openshift-gitops/) (**1.19.0**, **1.20.0**, etc. — pick a version aligned with your OpenShift GitOps).
   - Upstream: [argocd-agent releases (GitHub)](https://github.com/argoproj-labs/argocd-agent/releases).
 - **Helm** ≥ 3.8 for the `redhat-argocd-agent` chart.
-- Optional: **cert-manager** on the principal + **jq** / **yq** for cert-manager helper scripts.
+- **Option B only**: the **cert-manager Operator for Red Hat OpenShift** must be installed on the **principal** cluster (and healthy) before you apply the manifests under `principal/cert-manager`. **jq** / **yq** are still required for the helper scripts.
 - **`envsubst`** (often from the `gettext` package on Linux; on macOS: `brew install gettext` and ensure the binary is on your `PATH`) to substitute `${…}` variables in `*.template` files.
 
 ---
@@ -202,6 +202,8 @@ The **`pki propagate`** and **`pki issue agent …`** commands write secrets int
 The script: ensures spoke namespaces, initializes the CA, issues principal / resource-proxy certificates, creates the JWT signing key, registers **`managed-cluster`** and **`autonomous-cluster`** agents, propagates the CA, and issues client certificates on each spoke.
 
 ### Option B — **cert-manager** (optional)
+
+**Prerequisite:** Install the **cert-manager Operator for Red Hat OpenShift** on the **principal** cluster first (Red Hat–supported cert-manager). Wait until the operator (CSV) is **Succeeded** and CRDs such as `certificates.cert-manager.io` / `issuers.cert-manager.io` are present (`oc get crd | grep cert-manager`). Without this operator, the `Certificate` and `Issuer` resources in `principal/cert-manager/` will not reconcile.
 
 1. Generate an off-cluster CA (openssl) and create the `argocd-agent-ca` TLS secret in `gitops-control-plane` (see [TLS documentation](https://argocd-agent.readthedocs.io/latest/configuration/tls-certificates/#using-cert-manager)).
 2. With `PRINCIPAL_ROUTE_HOST` exported:  

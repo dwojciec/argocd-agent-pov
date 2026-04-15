@@ -77,7 +77,7 @@ argocd-agent-multicluster-pov/
   - **Red Hat (recommandé avec l’opérateur OpenShift GitOps)** : téléchargement depuis le [Content Gateway — openshift-gitops](https://developers.redhat.com/content-gateway/rest/browse/pub/cgw/openshift-gitops/) (dossiers **1.19.0**, **1.20.0**, etc. — choisir la version alignée sur votre OpenShift GitOps).
   - Amont : [releases argocd-agent (GitHub)](https://github.com/argoproj-labs/argocd-agent/releases).
 - **Helm** ≥ 3.8 pour le chart `redhat-argocd-agent`.
-- Optionnel : **cert-manager** installé sur le principal + **jq** / **yq** pour les scripts cert-manager.
+- **Option B uniquement** : l’**opérateur cert-manager Operator for Red Hat OpenShift** doit être installé sur le cluster **principal** (et opérationnel) avant d’appliquer les manifests sous `principal/cert-manager`. Les scripts d’export restent dépendants de **jq** / **yq**.
 - **`envsubst`** (souvent fourni par le paquet `gettext` sur Linux ; sur macOS : `brew install gettext` puis utiliser le binaire dans le PATH) pour substituer les variables `${…}` dans les fichiers `*.template`.
 
 ---
@@ -202,6 +202,8 @@ Les commandes **`pki propagate`** et **`pki issue agent …`** écrivent des sec
 Ce script : crée si besoin les namespaces spoke, initialise la CA, émet les certificats principal / resource-proxy, crée la clé JWT, crée les agents **`managed-cluster`** et **`autonomous-cluster`**, propage la CA et émet les certificats client sur chaque spoke.
 
 ### Option B — **cert-manager** (optionnel)
+
+**Prérequis :** installer au préalable sur le cluster **principal** l’**opérateur cert-manager Operator for Red Hat OpenShift** (cert-manager pris en charge par Red Hat). Attendre que l’opérateur (CSV) soit en phase **Succeeded** et que les CRD du type `certificates.cert-manager.io` / `issuers.cert-manager.io` soient présentes (`oc get crd | grep cert-manager`). Sans cet opérateur, les ressources `Certificate` et `Issuer` du répertoire `principal/cert-manager/` ne seront pas prises en charge.
 
 1. Générez une CA hors cluster (openssl) et créez le secret TLS `argocd-agent-ca` dans `gitops-control-plane` (voir [documentation TLS](https://argocd-agent.readthedocs.io/latest/configuration/tls-certificates/#using-cert-manager)).
 2. Avec `PRINCIPAL_ROUTE_HOST` exporté :  

@@ -11,9 +11,9 @@ spec:
   argoCDAgent:
     principal:
       enabled: true
-      auth: "mtls:CN=([^,]+)"
-      logLevel: info
-      namespace:
+      auth: mtls:CN=system:open-cluster-management:cluster:([^:]+):addon:gitops-addon:agent:gitops-addon-agent
+      logLevel: trace
+      namespaces:
         allowedNamespaces:
           - "*"
       tls:
@@ -22,8 +22,9 @@ spec:
         insecureGenerate: false
   # Namespaces du hub où des Application peuvent être définies (Apps in any namespace).
   sourceNamespaces:
-    - managed-cluster
-    - gitops-control-plane
+    - "agent-managed"
+    - "agent-autonomous"
+    - "gitops-control-plane"
   server:
     route:
       enabled: true

@@ -136,38 +136,37 @@ After the GitOps add-on and Argo CD Agent are healthy, deploy the **guestbook** 
 
 ### Where the `Application` lives on the hub
 
-The hub Argo CD instance allows `Application` CRs only in namespaces listed under **`spec.sourceNamespaces`** (see [`principal/argocd/argocd-principal.yaml`](../principal/argocd/argocd-principal.yaml)). The manifests below use **`agent-managed`**. If you prefer the Application in another hub namespace (for example one named like the cluster), add that namespace to `sourceNamespaces` and change `metadata.namespace` in the YAML accordingly.
+The `Application` is defined in namespace **`gitops-control-plane`** (same namespace as the hub Argo CD instance). That namespace must appear under **`spec.sourceNamespaces`** on the hub Argo CD CR — see [`principal/argocd/argocd-principal.yaml`](../principal/argocd/argocd-principal.yaml).
 
-### Pointing the destination at `a-cluster`
+The manifest uses **`project: managed-clusters-project`**. That `AppProject` must exist on the hub (ACM GitOps often creates it; if `oc apply` fails with an unknown project, create the `AppProject` or change `spec.project` to one that exists).
 
-- **Recommended:** use **`destination.name: a-cluster`** so it matches the Argo CD **cluster** secret on the hub for that managed cluster (same idea as [`principal/applications/sample-application-managed-cluster1.yaml`](../principal/applications/sample-application-managed-cluster1.yaml), which uses `destination.name`).
+### Apply
 
-```bash
-oc apply -f ACM-implementation/applications/guestbook-a-cluster.yaml
-```
-
-- **Alternative (explicit principal URL + `agentName`):** equivalent to passing `server: 'https://<argocd-agent-principal-route>?agentName=a-cluster'`. Use the template and `PRINCIPAL_ROUTE_HOST` (hostname only, no `https://`), for example from [`envsubst.env.example`](../envsubst.env.example):
+Set **`PRINCIPAL_ROUTE_HOST`** to the Argo CD Agent **principal** Route hostname only (no `https://`, no `:443`) — copy from [`envsubst.env.example`](../envsubst.env.example) into `envsubst.env`, then:
 
 ```bash
+oc config use-context principal
 set -a && [ -f envsubst.env ] && . envsubst.env && set +a
-envsubst < ACM-implementation/applications/guestbook-a-cluster-server-url.yaml.template | oc apply -f -
+envsubst '${PRINCIPAL_ROUTE_HOST}' < ACM-implementation/applications/guestbook-a-cluster.yaml | oc apply -f -
 ```
+
+This expands `destination.server` to `https://<PRINCIPAL_ROUTE_HOST>/?agentName=a-cluster` (agent routing to managed cluster **`a-cluster`**). Adjust `agentName` in the YAML if your hub cluster secret name differs.
 
 ### Verify
 
-On the **hub** (Argo CD UI or CLI):
+On the **hub**:
 
 ```bash
-oc get application guestbook -n agent-managed -o yaml
+oc get application guestbook -n gitops-control-plane -o yaml
 ```
 
-On **managed cluster `a-cluster`**, once synced:
+On **managed cluster `a-cluster`** after a successful sync (workloads go to **`guestbook-deploy`** on the spoke):
 
 ```bash
-oc get deploy,svc -n a-cluster --context a-cluster
+oc get deploy,svc -n guestbook-deploy --context a-cluster
 ```
 
-Ensure namespace **`a-cluster`** exists on the spoke (or let Argo CD create it if your RBAC allows), and that the default `AppProject` allows deploying into that destination namespace.
+Ensure namespace **`guestbook-deploy`** exists on the spoke or that Argo CD / the `AppProject` allows creating it, and that **`managed-clusters-project`** permits the destination.
 
 ---
 

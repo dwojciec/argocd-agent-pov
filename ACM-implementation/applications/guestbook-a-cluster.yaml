@@ -1,22 +1,25 @@
-# Apply on the hub. The Application object must live in a namespace listed in the hub Argo CD
-# spec.sourceNamespaces (see principal/argocd/argocd-principal.yaml — here: agent-managed).
+# Hub-side Application: Argo CD reconciles it from namespace gitops-control-plane (must be in
+# spec.sourceNamespaces on the hub Argo CD CR — see principal/argocd/argocd-principal.yaml).
 #
-# destination.name must match the Argo CD cluster secret name for the managed cluster (often the
-# managed cluster name, e.g. a-cluster). destination.namespace is the target namespace on the spoke.
+# AppProject `managed-clusters-project` must exist on the hub (often created by ACM GitOps).
+#
+# Apply (hostname only, no https:// — from repo root):
+#   set -a && [ -f envsubst.env ] && . envsubst.env && set +a
+#   envsubst '${PRINCIPAL_ROUTE_HOST}' < ACM-implementation/applications/guestbook-a-cluster.yaml | oc apply -f -
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
   name: guestbook
-  namespace: agent-managed
+  namespace: gitops-control-plane
 spec:
-  project: default
-  destination:
-    name: a-cluster
-    namespace: a-cluster
+  project: managed-clusters-project
   source:
     repoURL: https://github.com/argoproj/argocd-example-apps.git
-    path: guestbook
     targetRevision: HEAD
+    path: guestbook
+  destination:
+    server: https://${PRINCIPAL_ROUTE_HOST}/?agentName=a-cluster
+    namespace: guestbook-deploy
   syncPolicy:
     automated:
       prune: true

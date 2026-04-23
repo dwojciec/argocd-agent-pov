@@ -304,39 +304,35 @@ If you enable the GitOps add-on and Argo CD Agent through **Red Hat Advanced Clu
 
 ### Where the `Application` lives on the hub
 
-The hub Argo CD instance only reconciles `Application` resources in namespaces listed under **`spec.sourceNamespaces`**. For the manifests in [`principal/argocd/argocd-principal.yaml`](principal/argocd/argocd-principal.yaml), that includes **`agent-managed`** (and others). The sample manifests use **`metadata.namespace: agent-managed`**. If you want the `Application` in another hub namespace, add it under `sourceNamespaces` and adjust `metadata.namespace` in the YAML.
+The sample uses **`metadata.namespace: gitops-control-plane`** so Argo CD reconciles the `Application` alongside the hub instance in that namespace. The namespace must be listed under **`spec.sourceNamespaces`** — see [`principal/argocd/argocd-principal.yaml`](principal/argocd/argocd-principal.yaml). The manifest uses **`project: managed-clusters-project`**; that `AppProject` must exist (ACM GitOps commonly provides it).
 
 ### Apply (hub context)
 
-- **Recommended** — `destination.name` must match the Argo CD **cluster** secret name for the spoke (often the managed cluster name, same pattern as [`principal/applications/sample-application-managed-cluster1.yaml`](principal/applications/sample-application-managed-cluster1.yaml)):
+The manifest embeds **`${PRINCIPAL_ROUTE_HOST}`** in `destination.server` (hostname only — no `https://`). Copy [`envsubst.env.example`](envsubst.env.example) to `envsubst.env`, set `PRINCIPAL_ROUTE_HOST`, then:
 
-  ```bash
-  oc config use-context principal
-  oc apply -f ACM-implementation/applications/guestbook-a-cluster.yaml
-  ```
+```bash
+oc config use-context principal
+set -a && [ -f envsubst.env ] && . envsubst.env && set +a
+envsubst '${PRINCIPAL_ROUTE_HOST}' < ACM-implementation/applications/guestbook-a-cluster.yaml | oc apply -f -
+```
 
-- **Alternative** — explicit principal HTTPS URL and `agentName` query parameter. Set **`PRINCIPAL_ROUTE_HOST`** (hostname only, no `https://`) in `envsubst.env` — see [`envsubst.env.example`](envsubst.env.example):
-
-  ```bash
-  set -a && [ -f envsubst.env ] && . envsubst.env && set +a
-  envsubst < ACM-implementation/applications/guestbook-a-cluster-server-url.yaml.template | oc apply -f -
-  ```
+This yields `https://<host>/?agentName=a-cluster` and deploys the guestbook manifests into **`guestbook-deploy`** on the spoke. Change `agentName` or `destination.namespace` in [`ACM-implementation/applications/guestbook-a-cluster.yaml`](ACM-implementation/applications/guestbook-a-cluster.yaml) if your cluster secret name or target namespace differs.
 
 ### Verify
 
 On the **hub**:
 
 ```bash
-oc get application guestbook -n agent-managed -o yaml
+oc get application guestbook -n gitops-control-plane -o yaml
 ```
 
 On **managed cluster `a-cluster`** after a successful sync:
 
 ```bash
-oc get deploy,svc -n a-cluster --context a-cluster
+oc get deploy,svc -n guestbook-deploy --context a-cluster
 ```
 
-Ensure namespace **`a-cluster`** exists on the spoke (or that Argo CD is allowed to create it), and that the `AppProject` used by the `Application` permits the destination namespace.
+Ensure **`guestbook-deploy`** exists on the spoke or can be created, and that **`managed-clusters-project`** allows that destination.
 
 ---
 
@@ -388,7 +384,7 @@ oc apply -f autonomous-cluster/applications/sample-application-autonomous-cluste
 | `oc apply -k managed-cluster/…`, managed Helm | **managed-cluster** |
 | `oc apply -k autonomous-cluster/…`, autonomous Helm | **autonomous-cluster** |
 | `sample-application-managed-cluster1.yaml` | **principal** (hub `Application` namespace `managed-cluster`) |
-| `ACM-implementation/applications/guestbook-a-cluster.yaml` (ACM path) | **principal** (hub `Application` namespace `agent-managed`; destination cluster `a-cluster`) |
+| `envsubst … guestbook-a-cluster.yaml` (ACM path) | **principal** (hub `Application` in `gitops-control-plane`; spoke namespace `guestbook-deploy` on `a-cluster`) |
 | `sample-application-autonomous-cluster2.yaml` | **autonomous-cluster** (namespace `argocd`) |
 
 ---

@@ -1,0 +1,21 @@
+# Registers clusters matched by Placement with the hub Argo CD instance and enables the GitOps add-on with Argo CD Agent (ACM controller fills serverAddress/serverPort when needed).
+# Apply after: principal Argo CD + Placement exist; see README.
+apiVersion: apps.open-cluster-management.io/v1beta1
+kind: GitOpsCluster
+metadata:
+  name: gitops-agent-clusters
+  namespace: gitops-control-plane
+spec:
+  argoServer:
+    argoNamespace: gitops-control-plane
+  placementRef:
+    apiVersion: cluster.open-cluster-management.io/v1beta1
+    kind: Placement
+    name: placement-managed-clusters
+    namespace: gitops-control-plane
+  gitopsAddon:
+    enabled: true
+    overrideExistingConfigs: false
+    argoCDAgent:
+      enabled: true
+      propagateHubCA: true

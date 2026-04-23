@@ -1,0 +1,20 @@
+# Selects managed clusters a-cluster and b-cluster within ManagedClusterSet `poc-acm`
+# (requires ManagedClusterSetBinding in this namespace).
+# Requires each ManagedCluster to carry: metadata.labels.name in { a-cluster, b-cluster }.
+apiVersion: cluster.open-cluster-management.io/v1beta1
+kind: Placement
+metadata:
+  name: placement-managed-clusters
+  namespace: gitops-control-plane
+spec:
+  clusterSets:
+    - poc-acm
+  predicates:
+    - requiredClusterSelector:
+        labelSelector:
+          matchExpressions:
+            - key: name
+              operator: In
+              values:
+                - a-cluster
+                - b-cluster

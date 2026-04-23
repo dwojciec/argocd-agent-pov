@@ -8,6 +8,13 @@ metadata:
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: managed-cluster
+  name: agent-managed
+  labels:
+    argocd.argoproj.io/managed-by: gitops-control-plane
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: agent-autonomous
   labels:
     argocd.argoproj.io/managed-by: gitops-control-plane

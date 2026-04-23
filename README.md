@@ -37,6 +37,9 @@ argocd-agent-multicluster-pov/
 │   ├── validation-applications.md
 │   ├── developer-user1.md
 │   └── utilisateur-developpeur-user1.md
+├── ACM-implementation/        # Red Hat ACM: Placement, GitOpsCluster, guestbook → a-cluster
+│   ├── README.md
+│   └── applications/
 ├── principal/                 # PRINCIPAL cluster (hub)
 │   ├── operator/
 │   ├── namespaces/            # gitops-control-plane, managed-cluster
@@ -295,6 +298,48 @@ On the hub: `Application` **`sample-managed-demo`** in namespace **`managed-clus
 
 ---
 
+## ACM GitOps (optional) — Guestbook on managed cluster `a-cluster`
+
+If you enable the GitOps add-on and Argo CD Agent through **Red Hat Advanced Cluster Management** (`GitOpsCluster`, `Placement`, and so on), the end-to-end hub setup is documented under [`ACM-implementation/README.md`](ACM-implementation/README.md). Once the add-on and agent are healthy, you can deploy the **guestbook** example from [argoproj/argocd-example-apps](https://github.com/argoproj/argocd-example-apps) to a managed cluster named **`a-cluster`** as follows.
+
+### Where the `Application` lives on the hub
+
+The hub Argo CD instance only reconciles `Application` resources in namespaces listed under **`spec.sourceNamespaces`**. For the manifests in [`principal/argocd/argocd-principal.yaml`](principal/argocd/argocd-principal.yaml), that includes **`agent-managed`** (and others). The sample manifests use **`metadata.namespace: agent-managed`**. If you want the `Application` in another hub namespace, add it under `sourceNamespaces` and adjust `metadata.namespace` in the YAML.
+
+### Apply (hub context)
+
+- **Recommended** — `destination.name` must match the Argo CD **cluster** secret name for the spoke (often the managed cluster name, same pattern as [`principal/applications/sample-application-managed-cluster1.yaml`](principal/applications/sample-application-managed-cluster1.yaml)):
+
+  ```bash
+  oc config use-context principal
+  oc apply -f ACM-implementation/applications/guestbook-a-cluster.yaml
+  ```
+
+- **Alternative** — explicit principal HTTPS URL and `agentName` query parameter. Set **`PRINCIPAL_ROUTE_HOST`** (hostname only, no `https://`) in `envsubst.env` — see [`envsubst.env.example`](envsubst.env.example):
+
+  ```bash
+  set -a && [ -f envsubst.env ] && . envsubst.env && set +a
+  envsubst < ACM-implementation/applications/guestbook-a-cluster-server-url.yaml.template | oc apply -f -
+  ```
+
+### Verify
+
+On the **hub**:
+
+```bash
+oc get application guestbook -n agent-managed -o yaml
+```
+
+On **managed cluster `a-cluster`** after a successful sync:
+
+```bash
+oc get deploy,svc -n a-cluster --context a-cluster
+```
+
+Ensure namespace **`a-cluster`** exists on the spoke (or that Argo CD is allowed to create it), and that the `AppProject` used by the `Application` permits the destination namespace.
+
+---
+
 ## Step 5 — **autonomous-cluster** (autonomous)
 
 If `autonomous-cluster/namespaces` was applied before PKI, the namespaces step remains **idempotent**.
@@ -343,6 +388,7 @@ oc apply -f autonomous-cluster/applications/sample-application-autonomous-cluste
 | `oc apply -k managed-cluster/…`, managed Helm | **managed-cluster** |
 | `oc apply -k autonomous-cluster/…`, autonomous Helm | **autonomous-cluster** |
 | `sample-application-managed-cluster1.yaml` | **principal** (hub `Application` namespace `managed-cluster`) |
+| `ACM-implementation/applications/guestbook-a-cluster.yaml` (ACM path) | **principal** (hub `Application` namespace `agent-managed`; destination cluster `a-cluster`) |
 | `sample-application-autonomous-cluster2.yaml` | **autonomous-cluster** (namespace `argocd`) |
 
 ---

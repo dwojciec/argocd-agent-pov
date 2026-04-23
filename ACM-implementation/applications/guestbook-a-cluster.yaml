@@ -1,0 +1,23 @@
+# Apply on the hub. The Application object must live in a namespace listed in the hub Argo CD
+# spec.sourceNamespaces (see principal/argocd/argocd-principal.yaml — here: agent-managed).
+#
+# destination.name must match the Argo CD cluster secret name for the managed cluster (often the
+# managed cluster name, e.g. a-cluster). destination.namespace is the target namespace on the spoke.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: guestbook
+  namespace: agent-managed
+spec:
+  project: default
+  destination:
+    name: a-cluster
+    namespace: a-cluster
+  source:
+    repoURL: https://github.com/argoproj/argocd-example-apps.git
+    path: guestbook
+    targetRevision: HEAD
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

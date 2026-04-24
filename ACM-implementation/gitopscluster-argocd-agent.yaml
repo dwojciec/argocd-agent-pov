@@ -15,7 +15,8 @@ spec:
     namespace: gitops-control-plane
   gitopsAddon:
     enabled: true
-    overrideExistingConfigs: false
+    overrideExistingConfigs: true
     argoCDAgent:
       enabled: true
-      propagateHubCA: true
+      propagateHubCA: false
+      mode: managed 

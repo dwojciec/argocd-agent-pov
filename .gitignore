@@ -8,6 +8,7 @@ envsubst.env
 !*.env.example
 *.local.env
 .local/
+*.crt
 
 # =============================================================================
 # Fichiers générés depuis les *.template (peuvent contenir hôtes réels, TLS, etc.)

@@ -18,5 +18,5 @@ spec:
     overrideExistingConfigs: true
     argoCDAgent:
       enabled: true
-      propagateHubCA: false
+      propagateHubCA: true
       mode: managed 

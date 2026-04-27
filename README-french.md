@@ -39,7 +39,7 @@ argocd-agent-multicluster-pov/
 │   └── developer-user1.md                # (EN)
 ├── principal/                 # Cluster PRINCIPAL (hub)
 │   ├── operator/
-│   ├── namespaces/            # gitops-control-plane, managed-cluster
+│   ├── namespaces/            # openshift-gitops, managed-cluster
 │   ├── argocd/
 │   ├── cert-manager/
 │   ├── applications/
@@ -119,7 +119,7 @@ Récupérez sur le **principal** (après installation de l’Argo CD Principal) 
 
 ```bash
 oc config use-context principal
-oc get route -n gitops-control-plane
+oc get route -n openshift-gitops
 ```
 
 Notez l’**hôte seul** de la Route (sans `https://`, sans **`:443`** à la fin). Renseignez-le dans **`envsubst.env`** (`PRINCIPAL_ROUTE_HOST`) pour les `*.template`. Le chart **`redhat-argocd-agent`** attend `server` = hostname et **`serverPort`** pour le HTTPS (voir `helm show values` : `server` / `serverPort`) ; le template du dépôt suit ce schéma — ne pas passer `https://…` dans `server` sous peine d’erreurs de connexion type **`…:443:443` / too many colons** dans les logs de l’agent.
@@ -127,7 +127,7 @@ Notez l’**hôte seul** de la Route (sans `https://`, sans **`:443`** à la fin
 Découvrez le **nom DNS du service resource-proxy** (pour `argocd-agentctl` et les certificats) :
 
 ```bash
-oc get svc -n gitops-control-plane | grep -i resource-proxy
+oc get svc -n openshift-gitops | grep -i resource-proxy
 ```
 
 ---
@@ -159,7 +159,7 @@ Les `Application` du hub utiliseront notamment le namespace `managed-cluster` :
 
 ```bash
 chmod +x principal/appproject/patch-default-source-namespaces.sh
-./principal/appproject/patch-default-source-namespaces.sh gitops-control-plane
+./principal/appproject/patch-default-source-namespaces.sh openshift-gitops
 ```
 
 Redémarrez les pods Argo CD si la doc produit / votre environnement l’exige.
@@ -170,7 +170,7 @@ Une fois le secret `argocd-redis-initial-password` présent :
 
 ```bash
 chmod +x principal/scripts/bootstrap-redis-secret-principal.sh
-./principal/scripts/bootstrap-redis-secret-principal.sh gitops-control-plane
+./principal/scripts/bootstrap-redis-secret-principal.sh openshift-gitops
 ```
 
 ---
@@ -183,7 +183,7 @@ Deux approches possibles ; pour un PoV, **l’option A** est la plus simple.
 
 Les commandes **`pki propagate`** et **`pki issue agent …`** écrivent des secrets dans **`gitops-agent` (spoke managed)** ou **`argocd` (spoke autonomous)**. Ces namespaces doivent exister **avant** ces étapes. Le script ci‑dessous applique automatiquement `managed-cluster/namespaces` et `autonomous-cluster/namespaces` au début ; en **procédure manuelle** (sans script), faites-le avant T25 / T26 — voir [`Etape-par-etape.md`](Etape-par-etape.md) (encadré *Prérequis spokes*).
 
-1. Définissez les variables (mêmes noms que dans `envsubst.env.example` : `PRINCIPAL_ROUTE_HOST`, `RESOURCE_PROXY_SERVER` = **host:port** du resource-proxy — voir `oc get svc -n gitops-control-plane`).
+1. Définissez les variables (mêmes noms que dans `envsubst.env.example` : `PRINCIPAL_ROUTE_HOST`, `RESOURCE_PROXY_SERVER` = **host:port** du resource-proxy — voir `oc get svc -n openshift-gitops`).
 
    ```bash
    set -a && source envsubst.env && set +a
@@ -205,7 +205,7 @@ Ce script : crée si besoin les namespaces spoke, initialise la CA, émet les ce
 
 **Prérequis :** installer au préalable sur le cluster **principal** l’**opérateur cert-manager Operator for Red Hat OpenShift** (cert-manager pris en charge par Red Hat). Attendre que l’opérateur (CSV) soit en phase **Succeeded** et que les CRD du type `certificates.cert-manager.io` / `issuers.cert-manager.io` soient présentes (`oc get crd | grep cert-manager`). Sans cet opérateur, les ressources `Certificate` et `Issuer` du répertoire `principal/cert-manager/` ne seront pas prises en charge.
 
-1. Générez une CA hors cluster (openssl) et créez le secret TLS `argocd-agent-ca` dans `gitops-control-plane` (voir [documentation TLS](https://argocd-agent.readthedocs.io/latest/configuration/tls-certificates/#using-cert-manager)).
+1. Générez une CA hors cluster (openssl) et créez le secret TLS `argocd-agent-ca` dans `openshift-gitops` (voir [documentation TLS](https://argocd-agent.readthedocs.io/latest/configuration/tls-certificates/#using-cert-manager)).
 2. Avec `PRINCIPAL_ROUTE_HOST` exporté :  
    `envsubst < principal/cert-manager/certificate-principal-tls.yaml.template | oc apply -f -`
 3. `oc apply -k principal/cert-manager`
@@ -351,7 +351,7 @@ Le `destination.server` doit être `https://kubernetes.default.svc`. Après sync
 
 - **« namespaces … not found » avec `argocd-agentctl pki propagate` / `pki issue agent`** : créer les namespaces sur les spokes (`oc apply -k managed-cluster/namespaces --context managed-cluster`, idem `autonomous-cluster`) **avant** ces commandes, ou utiliser le script `bootstrap-argocd-agentctl.sh` qui le fait automatiquement — détail : [`Etape-par-etape.md`](Etape-par-etape.md) (Phase 2A).
 - **`no matches for kind "ArgoCD"` / `ensure CRDs are installed first` sur managed-cluster ou autonomous-cluster** : attendre que l’opérateur OpenShift GitOps soit **Succeeded** (CRD `argocds.argoproj.io` présent) **avant** `oc apply -k managed-cluster/argocd` ou `autonomous-cluster/argocd`. Ce n’est pas lié au message `namespace/… unchanged`.
-- **Principal CrashLoop — secrets TLS manquants** : finaliser la section PKI (Option A ou B) ; vérifier `oc get certificate -n gitops-control-plane` si cert-manager.
+- **Principal CrashLoop — secrets TLS manquants** : finaliser la section PKI (Option A ou B) ; vérifier `oc get certificate -n openshift-gitops` si cert-manager.
 - **Agent ne joint pas Redis** : NetworkPolicy, labels Redis/Agent, secret `argocd-redis` sur le spoke.
 - **Agent : `too many colons in address` / `…:443:443`** : le chart sépare **`server`** (hostname seul) et **`serverPort`** (`443`). Corrigez `managed-cluster/helm/values-managed.yaml.template` (dépôt à jour) puis `helm upgrade … -f` avec `PRINCIPAL_ROUTE_HOST` **sans** `https://` ni `:443`.
 - **`helm template … | grep` ne renvoie rien** : ne pas rediriger stderr vers `/dev/null` tant que vous déboguez ; vérifier `helm search repo redhat-argocd-agent` et `helm repo add openshift-helm-charts https://charts.openshift.io/`. Utiliser `grep -F "agent.server.address"` (chaîne littérale) plutôt qu’une regex fragile — voir T33 dans [`Etape-par-etape.md`](Etape-par-etape.md).

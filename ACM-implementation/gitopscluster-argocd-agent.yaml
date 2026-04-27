@@ -4,15 +4,15 @@ apiVersion: apps.open-cluster-management.io/v1beta1
 kind: GitOpsCluster
 metadata:
   name: gitops-agent-clusters
-  namespace: gitops-control-plane
+  namespace: openshift-gitops
 spec:
   argoServer:
-    argoNamespace: gitops-control-plane
+    argoNamespace: openshift-gitops
   placementRef:
     apiVersion: cluster.open-cluster-management.io/v1beta1
     kind: Placement
     name: placement-managed-clusters
-    namespace: gitops-control-plane
+    namespace: openshift-gitops
   gitopsAddon:
     enabled: true
     overrideExistingConfigs: true

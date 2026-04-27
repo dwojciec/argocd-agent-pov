@@ -5,7 +5,7 @@ apiVersion: cluster.open-cluster-management.io/v1beta1
 kind: Placement
 metadata:
   name: placement-managed-clusters
-  namespace: gitops-control-plane
+  namespace: openshift-gitops
 spec:
   clusterSets:
     - poc-acm

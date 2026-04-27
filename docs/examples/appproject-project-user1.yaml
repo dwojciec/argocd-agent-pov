@@ -5,7 +5,7 @@ apiVersion: argoproj.io/v1alpha1
 kind: AppProject
 metadata:
   name: project-user1
-  namespace: gitops-control-plane
+  namespace: openshift-gitops
 spec:
   description: "PoV — périmètre équipe user1 (destinations managed-cluster uniquement)"
   sourceRepos:

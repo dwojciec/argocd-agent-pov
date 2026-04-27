@@ -1,4 +1,4 @@
-# Hub-side Application: Argo CD reconciles it from namespace gitops-control-plane (must be in
+# Hub-side Application: Argo CD reconciles it from namespace openshift-gitops (must be in
 # spec.sourceNamespaces on the hub Argo CD CR — see principal/argocd/argocd-principal.yaml).
 #
 # AppProject `managed-clusters-project` must exist on the hub (often created by ACM GitOps).
@@ -10,7 +10,7 @@ apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
   name: guestbook
-  namespace: gitops-control-plane
+  namespace: openshift-gitops
 spec:
   project: managed-clusters-project
   source:

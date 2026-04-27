@@ -42,7 +42,7 @@ argocd-agent-multicluster-pov/
 │   └── applications/
 ├── principal/                 # PRINCIPAL cluster (hub)
 │   ├── operator/
-│   ├── namespaces/            # gitops-control-plane, managed-cluster
+│   ├── namespaces/            # openshift-gitops, managed-cluster
 │   ├── argocd/
 │   ├── cert-manager/
 │   ├── applications/
@@ -122,7 +122,7 @@ On the **principal** (after installing the Argo CD Principal), get the **HTTPS h
 
 ```bash
 oc config use-context principal
-oc get route -n gitops-control-plane
+oc get route -n openshift-gitops
 ```
 
 Record the **bare hostname** for the Route (no `https://`, no **`:443`** suffix). Put it in **`envsubst.env`** as `PRINCIPAL_ROUTE_HOST` for the `*.template` files. The **`redhat-argocd-agent`** chart expects `server` as the hostname and **`serverPort`** for HTTPS (see `helm show values`: `server` / `serverPort`); the templates in this repo follow that pattern — do **not** put `https://…` in `server` or you may see connection errors like **`…:443:443` / too many colons** in agent logs.
@@ -130,7 +130,7 @@ Record the **bare hostname** for the Route (no `https://`, no **`:443`** suffix)
 Discover the **DNS name of the resource-proxy Service** (for `argocd-agentctl` and certificates):
 
 ```bash
-oc get svc -n gitops-control-plane | grep -i resource-proxy
+oc get svc -n openshift-gitops | grep -i resource-proxy
 ```
 
 ---
@@ -162,7 +162,7 @@ Hub `Application` resources will use the `managed-cluster` namespace among other
 
 ```bash
 chmod +x principal/appproject/patch-default-source-namespaces.sh
-./principal/appproject/patch-default-source-namespaces.sh gitops-control-plane
+./principal/appproject/patch-default-source-namespaces.sh openshift-gitops
 ```
 
 Restart Argo CD pods if your product docs or environment require it.
@@ -173,7 +173,7 @@ Once the `argocd-redis-initial-password` secret exists:
 
 ```bash
 chmod +x principal/scripts/bootstrap-redis-secret-principal.sh
-./principal/scripts/bootstrap-redis-secret-principal.sh gitops-control-plane
+./principal/scripts/bootstrap-redis-secret-principal.sh openshift-gitops
 ```
 
 ---
@@ -186,7 +186,7 @@ Two approaches; for a PoV, **option A** is the simplest.
 
 The **`pki propagate`** and **`pki issue agent …`** commands write secrets into **`gitops-agent` (managed spoke)** or **`argocd` (autonomous spoke)**. Those namespaces must exist **before** you run them. The script below applies `managed-cluster/namespaces` and `autonomous-cluster/namespaces` up front; if you run **manually** (no script), do that before T25 / T26 — see [`Etape-par-etape.md`](Etape-par-etape.md) (*Spoke prerequisites* callout).
 
-1. Export variables (same names as `envsubst.env.example`: `PRINCIPAL_ROUTE_HOST`, `RESOURCE_PROXY_SERVER` = **host:port** for the resource-proxy — see `oc get svc -n gitops-control-plane`).
+1. Export variables (same names as `envsubst.env.example`: `PRINCIPAL_ROUTE_HOST`, `RESOURCE_PROXY_SERVER` = **host:port** for the resource-proxy — see `oc get svc -n openshift-gitops`).
 
    ```bash
    set -a && source envsubst.env && set +a
@@ -208,7 +208,7 @@ The script: ensures spoke namespaces, initializes the CA, issues principal / res
 
 **Prerequisite:** Install the **cert-manager Operator for Red Hat OpenShift** on the **principal** cluster first (Red Hat–supported cert-manager). Wait until the operator (CSV) is **Succeeded** and CRDs such as `certificates.cert-manager.io` / `issuers.cert-manager.io` are present (`oc get crd | grep cert-manager`). Without this operator, the `Certificate` and `Issuer` resources in `principal/cert-manager/` will not reconcile.
 
-1. Generate an off-cluster CA (openssl) and create the `argocd-agent-ca` TLS secret in `gitops-control-plane` (see [TLS documentation](https://argocd-agent.readthedocs.io/latest/configuration/tls-certificates/#using-cert-manager)).
+1. Generate an off-cluster CA (openssl) and create the `argocd-agent-ca` TLS secret in `openshift-gitops` (see [TLS documentation](https://argocd-agent.readthedocs.io/latest/configuration/tls-certificates/#using-cert-manager)).
 2. With `PRINCIPAL_ROUTE_HOST` exported:  
    `envsubst < principal/cert-manager/certificate-principal-tls.yaml.template | oc apply -f -`
 3. `oc apply -k principal/cert-manager`
@@ -304,7 +304,7 @@ If you enable the GitOps add-on and Argo CD Agent through **Red Hat Advanced Clu
 
 ### Where the `Application` lives on the hub
 
-The sample uses **`metadata.namespace: gitops-control-plane`** so Argo CD reconciles the `Application` alongside the hub instance in that namespace. The namespace must be listed under **`spec.sourceNamespaces`** — see [`principal/argocd/argocd-principal.yaml`](principal/argocd/argocd-principal.yaml). The manifest uses **`project: managed-clusters-project`**; that `AppProject` must exist (ACM GitOps commonly provides it).
+The sample uses **`metadata.namespace: openshift-gitops`** so Argo CD reconciles the `Application` alongside the hub instance in that namespace. The namespace must be listed under **`spec.sourceNamespaces`** — see [`principal/argocd/argocd-principal.yaml`](principal/argocd/argocd-principal.yaml). The manifest uses **`project: managed-clusters-project`**; that `AppProject` must exist (ACM GitOps commonly provides it).
 
 ### Apply (hub context)
 
@@ -323,7 +323,7 @@ This yields `https://<host>/?agentName=a-cluster` and deploys the guestbook mani
 On the **hub**:
 
 ```bash
-oc get application guestbook -n gitops-control-plane -o yaml
+oc get application guestbook -n openshift-gitops -o yaml
 ```
 
 On **managed cluster `a-cluster`** after a successful sync:
@@ -384,7 +384,7 @@ oc apply -f autonomous-cluster/applications/sample-application-autonomous-cluste
 | `oc apply -k managed-cluster/…`, managed Helm | **managed-cluster** |
 | `oc apply -k autonomous-cluster/…`, autonomous Helm | **autonomous-cluster** |
 | `sample-application-managed-cluster1.yaml` | **principal** (hub `Application` namespace `managed-cluster`) |
-| `envsubst … guestbook-a-cluster.yaml` (ACM path) | **principal** (hub `Application` in `gitops-control-plane`; spoke namespace `guestbook-deploy` on `a-cluster`) |
+| `envsubst … guestbook-a-cluster.yaml` (ACM path) | **principal** (hub `Application` in `openshift-gitops`; spoke namespace `guestbook-deploy` on `a-cluster`) |
 | `sample-application-autonomous-cluster2.yaml` | **autonomous-cluster** (namespace `argocd`) |
 
 ---
@@ -393,7 +393,7 @@ oc apply -f autonomous-cluster/applications/sample-application-autonomous-cluste
 
 - **“namespaces … not found” with `argocd-agentctl pki propagate` / `pki issue agent`**: create spoke namespaces first (`oc apply -k managed-cluster/namespaces --context managed-cluster`, same for `autonomous-cluster`), or use `bootstrap-argocd-agentctl.sh` — details in [`Etape-par-etape.md`](Etape-par-etape.md) (Phase 2A).
 - **`no matches for kind "ArgoCD"` / `ensure CRDs are installed first` on managed-cluster or autonomous-cluster**: wait until the OpenShift GitOps operator is **Succeeded** (CRD `argocds.argoproj.io` exists) **before** `oc apply -k managed-cluster/argocd` or `autonomous-cluster/argocd`. This is unrelated to `namespace/… unchanged` messages.
-- **Principal CrashLoop — missing TLS secrets**: finish the PKI section (option A or B); check `oc get certificate -n gitops-control-plane` if you use cert-manager.
+- **Principal CrashLoop — missing TLS secrets**: finish the PKI section (option A or B); check `oc get certificate -n openshift-gitops` if you use cert-manager.
 - **Agent cannot reach Redis**: NetworkPolicy, Redis/Agent labels, `argocd-redis` secret on the spoke.
 - **Agent: `too many colons in address` / `…:443:443`**: the chart splits **`server`** (hostname only) and **`serverPort`** (`443`). Fix `managed-cluster/helm/values-managed.yaml.template` (use an up-to-date copy of this repo) and `helm upgrade … -f` with `PRINCIPAL_ROUTE_HOST` **without** `https://` or `:443`.
 - **`helm template … | grep` prints nothing**: do not hide stderr with `/dev/null` while debugging; verify `helm search repo redhat-argocd-agent` and `helm repo add openshift-helm-charts https://charts.openshift.io/`. Prefer `grep -F "agent.server.address"` — see T33 in [`step-by-step.md`](step-by-step.md).

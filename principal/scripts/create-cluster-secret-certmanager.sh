@@ -6,8 +6,8 @@
 set -euo pipefail
 NAME="${1:?nom logique agent (ex: managed-cluster)}"
 TLS_SECRET="${2:?nom du secret TLS (ex: managed-cluster-principal)}"
-NS="${3:-gitops-control-plane}"
-PROXY_SVC="${PROXY_SVC:-argocd-agent-resource-proxy.gitops-control-plane.svc.cluster.local:9090}"
+NS="${3:-openshift-gitops}"
+PROXY_SVC="${PROXY_SVC:-argocd-agent-resource-proxy.openshift-gitops.svc.cluster.local:9090}"
 
 AGENT_CA_B64="$(oc get secret "${TLS_SECRET}" -n "${NS}" -o jsonpath='{.data.ca\.crt}')"
 AGENT_TLS_B64="$(oc get secret "${TLS_SECRET}" -n "${NS}" -o jsonpath='{.data.tls\.crt}')"

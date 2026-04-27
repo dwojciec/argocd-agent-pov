@@ -199,8 +199,8 @@ helm repo update
 
 1. `cp envsubst.env.example envsubst.env`
 2. Edit `envsubst.env`:
-   - **`PRINCIPAL_ROUTE_HOST`**: **host only** for the Principal Route (no `https://`, no **`:443`** suffix), obtained after T12 with `oc get route -n gitops-control-plane --context principal`. The `redhat-argocd-agent` chart uses **`server`** (hostname) and **`serverPort`** (`443` by default): do not put `https://` in the generated values from the template (see `managed-cluster/helm/values-managed.yaml.template`).
-   - **`RESOURCE_PROXY_SERVER`**: `host:port` for the **resource-proxy** service on the principal (e.g. `…resource-proxy.gitops-control-plane.svc.cluster.local:9090`), from `oc get svc -n gitops-control-plane --context principal`.
+   - **`PRINCIPAL_ROUTE_HOST`**: **host only** for the Principal Route (no `https://`, no **`:443`** suffix), obtained after T12 with `oc get route -n openshift-gitops --context principal`. The `redhat-argocd-agent` chart uses **`server`** (hostname) and **`serverPort`** (`443` by default): do not put `https://` in the generated values from the template (see `managed-cluster/helm/values-managed.yaml.template`).
+   - **`RESOURCE_PROXY_SERVER`**: `host:port` for the **resource-proxy** service on the principal (e.g. `…resource-proxy.openshift-gitops.svc.cluster.local:9090`), from `oc get svc -n openshift-gitops --context principal`.
 
 **Check**: `set -a && source envsubst.env && set +a && echo "$PRINCIPAL_ROUTE_HOST"`
 
@@ -239,7 +239,7 @@ oc get csv -n openshift-gitops-operator -w
 
 ---
 
-### T11 — Create `gitops-control-plane` and `managed-cluster` namespaces
+### T11 — Create `openshift-gitops` and `managed-cluster` namespaces
 
 **Goal**: isolate the Argo CD / Principal instance and host hub “managed” `Application` resources.
 
@@ -251,7 +251,7 @@ oc get csv -n openshift-gitops-operator -w
 oc apply -k principal/namespaces
 ```
 
-**Check**: `oc get ns gitops-control-plane managed-cluster`.
+**Check**: `oc get ns openshift-gitops managed-cluster`.
 
 **Automation**: [`principal/namespaces/`](principal/namespaces/).
 
@@ -269,11 +269,11 @@ oc apply -k principal/namespaces
 oc apply -k principal/argocd
 ```
 
-**Check**: routes and pods appear in `gitops-control-plane`; note the Principal **Route** for `PRINCIPAL_ROUTE_HOST` (T04).
+**Check**: routes and pods appear in `openshift-gitops`; note the Principal **Route** for `PRINCIPAL_ROUTE_HOST` (T04).
 
 ```bash
-oc get route -n gitops-control-plane
-oc get pods -n gitops-control-plane
+oc get route -n openshift-gitops
+oc get pods -n openshift-gitops
 ```
 
 **Automation**: [`principal/argocd/argocd-principal.yaml`](principal/argocd/argocd-principal.yaml).
@@ -284,25 +284,25 @@ oc get pods -n gitops-control-plane
 
 ### T13 — Allow source namespaces on `AppProject` `default`
 
-**Goal**: let Argo CD manage `Application` resources in `managed-cluster` (and `gitops-control-plane` if needed).
+**Goal**: let Argo CD manage `Application` resources in `managed-cluster` (and `openshift-gitops` if needed).
 
 **Why**: without `sourceNamespaces`, `Application` resources outside the instance namespace may be rejected.
 
 **Actions** (equivalent to the script):
 
 ```bash
-oc patch appproject default -n gitops-control-plane --type=merge \
-  -p '{"spec":{"sourceNamespaces":["managed-cluster","gitops-control-plane"]}}'
+oc patch appproject default -n openshift-gitops --type=merge \
+  -p '{"spec":{"sourceNamespaces":["managed-cluster","openshift-gitops"]}}'
 ```
 
 Or run:
 
 ```bash
 chmod +x principal/appproject/patch-default-source-namespaces.sh
-./principal/appproject/patch-default-source-namespaces.sh gitops-control-plane
+./principal/appproject/patch-default-source-namespaces.sh openshift-gitops
 ```
 
-**Check**: `oc get appproject default -n gitops-control-plane -o yaml | grep -A5 sourceNamespaces`
+**Check**: `oc get appproject default -n openshift-gitops -o yaml | grep -A5 sourceNamespaces`
 
 **Automation**: [`principal/appproject/patch-default-source-namespaces.sh`](principal/appproject/patch-default-source-namespaces.sh).
 
@@ -317,13 +317,13 @@ chmod +x principal/appproject/patch-default-source-namespaces.sh
 **Manual actions** (same logic as the script):
 
 ```bash
-PW=$(oc get secret argocd-redis-initial-password -n gitops-control-plane -o jsonpath='{.data.admin\.password}' | base64 -d)
-oc create secret generic argocd-redis -n gitops-control-plane --from-literal=auth="$PW" --dry-run=client -o yaml | oc apply -f -
+PW=$(oc get secret argocd-redis-initial-password -n openshift-gitops -o jsonpath='{.data.admin\.password}' | base64 -d)
+oc create secret generic argocd-redis -n openshift-gitops --from-literal=auth="$PW" --dry-run=client -o yaml | oc apply -f -
 # Then restart Principal deployment if needed
-oc rollout restart deployment -n gitops-control-plane -l app.kubernetes.io/name=argocd-agent-principal
+oc rollout restart deployment -n openshift-gitops -l app.kubernetes.io/name=argocd-agent-principal
 ```
 
-**Check**: `oc get secret argocd-redis -n gitops-control-plane`; Principal pod `Running`.
+**Check**: `oc get secret argocd-redis -n openshift-gitops`; Principal pod `Running`.
 
 **Automation**: [`principal/scripts/bootstrap-redis-secret-principal.sh`](principal/scripts/bootstrap-redis-secret-principal.sh).
 
@@ -358,10 +358,10 @@ Two paths: **A — argocd-agentctl** (recommended for PoV) or **B — cert-manag
 **Command**
 
 ```bash
-argocd-agentctl pki init --principal-context principal --principal-namespace gitops-control-plane
+argocd-agentctl pki init --principal-context principal --principal-namespace openshift-gitops
 ```
 
-**Check**: `oc get secret argocd-agent-ca -n gitops-control-plane --context principal`
+**Check**: `oc get secret argocd-agent-ca -n openshift-gitops --context principal`
 
 ---
 
@@ -374,8 +374,8 @@ argocd-agentctl pki init --principal-context principal --principal-namespace git
 ```bash
 argocd-agentctl pki issue principal \
   --principal-context principal \
-  --principal-namespace gitops-control-plane \
-  --dns "localhost,argocd-agent-principal.gitops-control-plane.svc.cluster.local,${PRINCIPAL_ROUTE_HOST}" \
+  --principal-namespace openshift-gitops \
+  --dns "localhost,argocd-agent-principal.openshift-gitops.svc.cluster.local,${PRINCIPAL_ROUTE_HOST}" \
   --upsert
 ```
 
@@ -387,12 +387,12 @@ argocd-agentctl pki issue principal \
 
 **Goal**: `argocd-agent-resource-proxy-tls` so Argo CD UI can talk to the resource proxy.
 
-**Command** (adjust `--dns` to the real resource-proxy service name; see `oc get svc -n gitops-control-plane`)
+**Command** (adjust `--dns` to the real resource-proxy service name; see `oc get svc -n openshift-gitops`)
 
 ```bash
 argocd-agentctl pki issue resource-proxy \
   --principal-context principal \
-  --principal-namespace gitops-control-plane \
+  --principal-namespace openshift-gitops \
   --dns "localhost,<resource-proxy-service-FQDN>" \
   --upsert
 ```
@@ -410,11 +410,11 @@ argocd-agentctl pki issue resource-proxy \
 ```bash
 argocd-agentctl jwt create-key \
   --principal-context principal \
-  --principal-namespace gitops-control-plane \
+  --principal-namespace openshift-gitops \
   --upsert
 ```
 
-**Check**: `oc get secret argocd-agent-jwt -n gitops-control-plane --context principal`
+**Check**: `oc get secret argocd-agent-jwt -n openshift-gitops --context principal`
 
 ---
 
@@ -427,11 +427,11 @@ argocd-agentctl jwt create-key \
 ```bash
 argocd-agentctl agent create managed-cluster \
   --principal-context principal \
-  --principal-namespace gitops-control-plane \
+  --principal-namespace openshift-gitops \
   --resource-proxy-server "${RESOURCE_PROXY_SERVER}"
 ```
 
-**Check**: `oc get secret cluster-managed-cluster -n gitops-control-plane --context principal` (you cannot combine a resource **name** and a `-l` selector with `oc get`). To list all cluster secrets: `oc get secret -n gitops-control-plane --context principal -l argocd.argoproj.io/secret-type=cluster`.
+**Check**: `oc get secret cluster-managed-cluster -n openshift-gitops --context principal` (you cannot combine a resource **name** and a `-l` selector with `oc get`). To list all cluster secrets: `oc get secret -n openshift-gitops --context principal -l argocd.argoproj.io/secret-type=cluster`.
 
 ---
 
@@ -445,13 +445,13 @@ argocd-agentctl agent create managed-cluster \
 argocd-agentctl pki propagate \
   --principal-context principal \
   --agent-context managed-cluster \
-  --principal-namespace gitops-control-plane \
+  --principal-namespace openshift-gitops \
   --agent-namespace gitops-agent
 
 argocd-agentctl pki issue agent managed-cluster \
   --principal-context principal \
   --agent-context managed-cluster \
-  --principal-namespace gitops-control-plane \
+  --principal-namespace openshift-gitops \
   --agent-namespace gitops-agent \
   --upsert
 ```
@@ -469,19 +469,19 @@ argocd-agentctl pki issue agent managed-cluster \
 ```bash
 argocd-agentctl agent create autonomous-cluster \
   --principal-context principal \
-  --principal-namespace gitops-control-plane \
+  --principal-namespace openshift-gitops \
   --resource-proxy-server "${RESOURCE_PROXY_SERVER}"
 
 argocd-agentctl pki propagate \
   --principal-context principal \
   --agent-context autonomous-cluster \
-  --principal-namespace gitops-control-plane \
+  --principal-namespace openshift-gitops \
   --agent-namespace argocd
 
 argocd-agentctl pki issue agent autonomous-cluster \
   --principal-context principal \
   --agent-context autonomous-cluster \
-  --principal-namespace gitops-control-plane \
+  --principal-namespace openshift-gitops \
   --agent-namespace argocd \
   --upsert
 ```
@@ -496,7 +496,7 @@ argocd-agentctl pki issue agent autonomous-cluster \
 
 **Summary steps** (details in [`README.md`](README.md) — Option B):
 
-1. Create CA (openssl) and TLS secret `argocd-agent-ca` in `gitops-control-plane`.
+1. Create CA (openssl) and TLS secret `argocd-agent-ca` in `openshift-gitops`.
 2. Deploy `Issuer` + `Certificate` (`oc apply -k principal/cert-manager` after generating the principal cert with  
    `envsubst < principal/cert-manager/certificate-principal-tls.yaml.template | oc apply -f -`).
 3. Wait for `READY` on `Certificate` resources.
@@ -594,7 +594,7 @@ helm template check openshift-helm-charts/redhat-argocd-agent \
   2>&1 | grep -F "agent.server.address" | head -5
 ```
 
-**Clarification**: `helm template` **does not** talk to the cluster; `agent.server.address` is **exactly** whatever you pass to `--set server=…` (or from `envsubst` via the template). A test value like `principal.apps.example.com` appears verbatim in the output—it is not auto-detected from your environment. For a real install, `server` must be the **Principal Argo CD Agent Route host** (often `*.apps.<your-cluster>`), from `oc get route -n gitops-control-plane --context principal`—**not** the OpenShift **console** URL (`console-openshift-console.apps…`), which is a different service entirely.
+**Clarification**: `helm template` **does not** talk to the cluster; `agent.server.address` is **exactly** whatever you pass to `--set server=…` (or from `envsubst` via the template). A test value like `principal.apps.example.com` appears verbatim in the output—it is not auto-detected from your environment. For a real install, `server` must be the **Principal Argo CD Agent Route host** (often `*.apps.<your-cluster>`), from `oc get route -n openshift-gitops --context principal`—**not** the OpenShift **console** URL (`console-openshift-console.apps…`), which is a different service entirely.
 
 **Automation**: template [`managed-cluster/helm/values-managed.yaml.template`](managed-cluster/helm/values-managed.yaml.template).
 

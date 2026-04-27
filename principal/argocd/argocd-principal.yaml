@@ -4,7 +4,7 @@ apiVersion: argoproj.io/v1beta1
 kind: ArgoCD
 metadata:
   name: argocd
-  namespace: gitops-control-plane
+  namespace: openshift-gitops
 spec:
   controller:
     enabled: false
@@ -24,7 +24,7 @@ spec:
   sourceNamespaces:
     - "agent-managed"
     - "agent-autonomous"
-    - "gitops-control-plane"
+    - "openshift-gitops"
   server:
     route:
       enabled: true

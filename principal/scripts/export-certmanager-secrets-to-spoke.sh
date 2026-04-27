@@ -5,7 +5,7 @@
 set -euo pipefail
 AGENT_CERT_SECRET="${1:?ex: managed-cluster-agent}"
 OUTDIR="${2:-./exported-secrets}"
-NS="${3:-gitops-control-plane}"
+NS="${3:-openshift-gitops}"
 
 mkdir -p "${OUTDIR}"
 

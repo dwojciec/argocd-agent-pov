@@ -8,11 +8,11 @@
 #   export PRINCIPAL_CTX=principal
 #   export CLUSTER1_CTX=managed-cluster
 #   export CLUSTER2_CTX=autonomous-cluster
-#   export PRINCIPAL_NS=gitops-control-plane
+#   export PRINCIPAL_NS=openshift-gitops
 #   export AGENT1_NS=gitops-agent
 #   export AGENT2_NS=argocd
 #   export PRINCIPAL_ROUTE_HOST=argocd-agent-principal-argocd.apps.example.com
-#   export RESOURCE_PROXY_SERVER=argocd-agent-principal-resource-proxy.gitops-control-plane.svc.cluster.local:9090
+#   export RESOURCE_PROXY_SERVER=argocd-agent-principal-resource-proxy.openshift-gitops.svc.cluster.local:9090
 #   ./bootstrap-argocd-agentctl.sh
 #
 # Adaptez PRINCIPAL_ROUTE_HOST et RESOURCE_PROXY_SERVER (host:port du resource-proxy).
@@ -21,7 +21,7 @@ set -euo pipefail
 PRINCIPAL_CTX="${PRINCIPAL_CTX:-principal}"
 CLUSTER1_CTX="${CLUSTER1_CTX:-managed-cluster}"
 CLUSTER2_CTX="${CLUSTER2_CTX:-autonomous-cluster}"
-PRINCIPAL_NS="${PRINCIPAL_NS:-gitops-control-plane}"
+PRINCIPAL_NS="${PRINCIPAL_NS:-openshift-gitops}"
 AGENT1_NS="${AGENT1_NS:-gitops-agent}"
 AGENT2_NS="${AGENT2_NS:-argocd}"
 

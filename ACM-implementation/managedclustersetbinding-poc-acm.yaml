@@ -1,10 +1,10 @@
-# Exposes ManagedClusterSet `poc-acm` into namespace `gitops-control-plane` so a Placement
+# Exposes ManagedClusterSet `poc-acm` into namespace `openshift-gitops` so a Placement
 # in that namespace can select clusters that belong to the set.
 # metadata.name must match spec.clusterSet (ACM convention).
 apiVersion: cluster.open-cluster-management.io/v1beta2
 kind: ManagedClusterSetBinding
 metadata:
   name: poc-acm
-  namespace: gitops-control-plane
+  namespace: openshift-gitops
 spec:
   clusterSet: poc-acm

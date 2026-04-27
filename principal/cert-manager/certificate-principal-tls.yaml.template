@@ -4,7 +4,7 @@ apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
   name: argocd-agent-principal-tls
-  namespace: gitops-control-plane
+  namespace: openshift-gitops
 spec:
   secretName: argocd-agent-principal-tls
   issuerRef:
@@ -12,5 +12,5 @@ spec:
     kind: Issuer
   commonName: principal
   dnsNames:
-    - argocd-agent-principal.gitops-control-plane.svc.cluster.local
+    - argocd-agent-principal.openshift-gitops.svc.cluster.local
     - ${PRINCIPAL_ROUTE_HOST}

@@ -34,7 +34,7 @@ oc get pods -n openshift-gitops-operator
 
 ## Step 2 — Create the Argo CD instance (principal / control plane)
 
-The Argo CD custom resource is defined in [`argocd-principal.yaml`](../principal/argocd/argocd-principal.yaml). It targets namespace `gitops-control-plane`. If the hub namespaces do not exist yet, create `gitops-control-plane`, `agent-managed`, and `agent-autonomous` (see [`namespaces.yaml`](../principal/namespaces/namespaces.yaml)):
+The Argo CD custom resource is defined in [`argocd-principal.yaml`](../principal/argocd/argocd-principal.yaml). It targets namespace `openshift-gitops`. If the hub namespaces do not exist yet, create `openshift-gitops`, `agent-managed`, and `agent-autonomous` (see [`namespaces.yaml`](../principal/namespaces/namespaces.yaml)):
 
 ```bash
 oc apply -f principal/namespaces/namespaces.yaml
@@ -49,19 +49,19 @@ oc apply -f principal/argocd/argocd-principal.yaml
 Verify the instance and workloads:
 
 ```bash
-oc get argocd -n gitops-control-plane
-oc get pods -n gitops-control-plane
+oc get argocd -n openshift-gitops
+oc get pods -n openshift-gitops
 ```
 
 ---
 
 ## Step 3 — Placement and GitOpsCluster (enable Argo CD Agent via ACM)
 
-Follow [Enabling Argo CD Agent](https://docs.redhat.com/en/documentation/red_hat_advanced_cluster_management_for_kubernetes/2.16/html-single/gitops/index#enabling_argocd_agent): define a **Placement** that selects your managed clusters, then a **GitOpsCluster** in the **same namespace** that references that placement and points the add-on at the hub Argo CD namespace (`gitops-control-plane` here).
+Follow [Enabling Argo CD Agent](https://docs.redhat.com/en/documentation/red_hat_advanced_cluster_management_for_kubernetes/2.16/html-single/gitops/index#enabling_argocd_agent): define a **Placement** that selects your managed clusters, then a **GitOpsCluster** in the **same namespace** that references that placement and points the add-on at the hub Argo CD namespace (`openshift-gitops` here).
 
 ### Prerequisites
 
-- Hub: Argo CD principal instance is running in `gitops-control-plane` (steps 1–2).
+- Hub: Argo CD principal instance is running in `openshift-gitops` (steps 1–2).
 - **ManagedClusterSet**: your spokes must belong to the set referenced by the binding (here **`poc-acm`**). Confirm on the hub, for example:
 
 ```bash
@@ -81,7 +81,7 @@ From the **repository root**:
 oc apply -k ACM-implementation
 ```
 
-This applies, in order, [`managedclustersetbinding-poc-acm.yaml`](managedclustersetbinding-poc-acm.yaml) (binds the set into `gitops-control-plane`), [`placement-managed-clusters.yaml`](placement-managed-clusters.yaml), then [`gitopscluster-argocd-agent.yaml`](gitopscluster-argocd-agent.yaml) via [`kustomization.yaml`](kustomization.yaml).
+This applies, in order, [`managedclustersetbinding-poc-acm.yaml`](managedclustersetbinding-poc-acm.yaml) (binds the set into `openshift-gitops`), [`placement-managed-clusters.yaml`](placement-managed-clusters.yaml), then [`gitopscluster-argocd-agent.yaml`](gitopscluster-argocd-agent.yaml) via [`kustomization.yaml`](kustomization.yaml).
 
 Alternatively, apply the files explicitly (same order):
 
@@ -94,8 +94,8 @@ oc apply -f ACM-implementation/gitopscluster-argocd-agent.yaml
 ### Verify
 
 ```bash
-oc get managedclustersetbinding -n gitops-control-plane
-oc get placement placement-managed-clusters -n gitops-control-plane -o jsonpath='{.status.conditions[?(@.type=="PlacementSatisfied")]}'
+oc get managedclustersetbinding -n openshift-gitops
+oc get placement placement-managed-clusters -n openshift-gitops -o jsonpath='{.status.conditions[?(@.type=="PlacementSatisfied")]}'
 echo
 ```
 
@@ -108,11 +108,11 @@ When placement is healthy, `PlacementSatisfied` should report **`status":"True"`
 Then confirm decisions and GitOps:
 
 ```bash
-oc get placementdecision -n gitops-control-plane -l cluster.open-cluster-management.io/placement=placement-managed-clusters -o yaml
+oc get placementdecision -n openshift-gitops -l cluster.open-cluster-management.io/placement=placement-managed-clusters -o yaml
 oc get gitopscluster gitops-agent-clusters -n openshift-gitops -o jsonpath='{.status.conditions}' | jq
 ```
 
-If you created the `GitOpsCluster` in another namespace (for example `gitops-control-plane` as in the manifests in this folder), use that namespace in the `oc get gitopscluster` command instead of `openshift-gitops`.
+Use the same **`-n …`** as `metadata.namespace` on your `GitOpsCluster` resource (these manifests use **`openshift-gitops`**).
 
 #### Placement still `PlacementSatisfied=False`
 
@@ -125,7 +125,7 @@ If you see **`reason":"NoManagedClusterMatched"`** and **`message":"No ManagedCl
 If the controller does not populate the agent principal address and you need to override it (see the documentation for `serverAddress` / `serverPort` under `spec.gitopsAddon.argoCDAgent`), patch the `GitOpsCluster` after checking your Argo CD Agent principal Route hostname, for example:
 
 ```bash
-oc get route -n gitops-control-plane
+oc get route -n openshift-gitops
 ```
 
 ---
@@ -136,7 +136,7 @@ After the GitOps add-on and Argo CD Agent are healthy, deploy the **guestbook** 
 
 ### Where the `Application` lives on the hub
 
-The `Application` is defined in namespace **`gitops-control-plane`** (same namespace as the hub Argo CD instance). That namespace must appear under **`spec.sourceNamespaces`** on the hub Argo CD CR — see [`principal/argocd/argocd-principal.yaml`](../principal/argocd/argocd-principal.yaml).
+The `Application` is defined in namespace **`openshift-gitops`** (same namespace as the hub Argo CD instance). That namespace must appear under **`spec.sourceNamespaces`** on the hub Argo CD CR — see [`principal/argocd/argocd-principal.yaml`](../principal/argocd/argocd-principal.yaml).
 
 The manifest uses **`project: managed-clusters-project`**. That `AppProject` must exist on the hub (ACM GitOps often creates it; if `oc apply` fails with an unknown project, create the `AppProject` or change `spec.project` to one that exists).
 
@@ -157,7 +157,7 @@ This expands `destination.server` to `https://<PRINCIPAL_ROUTE_HOST>/?agentName=
 On the **hub**:
 
 ```bash
-oc get application guestbook -n gitops-control-plane -o yaml
+oc get application guestbook -n openshift-gitops -o yaml
 ```
 
 On **managed cluster `a-cluster`** after a successful sync (workloads go to **`guestbook-deploy`** on the spoke):

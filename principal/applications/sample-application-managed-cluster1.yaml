@@ -13,7 +13,7 @@ spec:
     namespace: default
   source:
     repoURL: https://github.com/argoproj/argocd-example-apps
-    path: helm-guestbook
+    path: guestbook
     targetRevision: HEAD
   syncPolicy:
     automated:

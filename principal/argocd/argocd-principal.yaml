@@ -3,7 +3,7 @@
 apiVersion: argoproj.io/v1beta1
 kind: ArgoCD
 metadata:
-  name: argocd
+  name: principal
   namespace: openshift-gitops
 spec:
   controller:
@@ -13,9 +13,11 @@ spec:
       enabled: true
       auth: mtls:CN=system:open-cluster-management:cluster:([^:]+):addon:gitops-addon:agent:gitops-addon-agent
       logLevel: trace
-      namespaces:
-        allowedNamespaces:
-          - "*"
+      env:
+        - name: ARGOCD_PRINCIPAL_DESTINATION_BASED_MAPPING
+          value: 'true'
+        - name: ARGOCD_PRINCIPAL_ALLOWED_NAMESPACES
+          value: 'openshift-gitops,a-cluster,b-cluster'    
       tls:
         insecureGenerate: false
       jwt:
@@ -24,7 +26,6 @@ spec:
   sourceNamespaces:
     - "agent-managed"
     - "agent-autonomous"
-    - "openshift-gitops"
   server:
     route:
       enabled: true

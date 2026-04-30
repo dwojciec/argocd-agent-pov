@@ -73,6 +73,28 @@ If your set name differs, change **`poc-acm`** in [`managedclustersetbinding-poc
 
 - **ManagedCluster labels**: the placement keeps a predicate on label **`name`** ∈ `a-cluster`, `b-cluster`. Ensure each `ManagedCluster` has `metadata.labels.name` set accordingly, or edit [`placement-managed-clusters.yaml`](placement-managed-clusters.yaml) (`matchExpressions` / `values`).
 
+### Stale `Policy` objects (before deploy, restart, or validation)
+
+Red Hat support recommends inspecting **ACM `Policy`** resources (`policy.open-cluster-management.io`) on the **hub** **before** you apply GitOps manifests, **before** a full restart of the stack, and **before** you treat the Argo CD Agent setup as validated. A `Policy` from an **older** rollout than your current Argo CD Agent / GitOps alignment can cause subtle failures.
+
+1. **List policies** (use `-A` if you are unsure which namespace owns them; this repo keeps the `GitOpsCluster` in **`openshift-gitops`**):
+
+```bash
+oc get policy -A
+# or, when policies are only in the GitOps namespace:
+oc get policy -n openshift-gitops
+```
+
+2. **Compare `AGE` / creation time** with when you last installed or upgraded the hub GitOps stack, the add-on, and the Argo CD Agent. If a `Policy` is clearly **stale** relative to that setup, **delete** it. The operator/controller is expected to **recreate** a correct policy when reconciliation runs.
+
+```bash
+oc delete policy <policy-name> -n <namespace>
+```
+
+3. **Regenerate policy**: after removing stale policies, **trigger a `GitOpsCluster` reconcile** so the controller emits a fresh policy — for example by **re-applying** [`gitopscluster-argocd-agent.yaml`](gitopscluster-argocd-agent.yaml), or by following your support runbook (annotate/patch the `GitOpsCluster` to force reconciliation).
+
+Support summary: **delete outdated policies before restarting everything**, then reconcile `GitOpsCluster` so a **new** policy is generated.
+
 ### Apply
 
 From the **repository root**:

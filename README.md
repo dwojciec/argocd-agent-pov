@@ -300,7 +300,7 @@ On the hub: `Application` **`sample-managed-demo`** in namespace **`managed-clus
 
 ## ACM GitOps (optional) — Guestbook on managed cluster `a-cluster`
 
-If you enable the GitOps add-on and Argo CD Agent through **Red Hat Advanced Cluster Management** (`GitOpsCluster`, `Placement`, and so on), the end-to-end hub setup is documented under [`ACM-implementation/README.md`](ACM-implementation/README.md). Once the add-on and agent are healthy, you can deploy the **guestbook** example from [argoproj/argocd-example-apps](https://github.com/argoproj/argocd-example-apps) to a managed cluster named **`a-cluster`** as follows.
+If you enable the GitOps add-on and Argo CD Agent through **Red Hat Advanced Cluster Management** (`GitOpsCluster`, `Placement`, and so on), the end-to-end hub setup is documented under [`ACM-implementation/README.md`](ACM-implementation/README.md) — including a **pre-check** on stale hub **`Policy`** resources (`oc get policy`) that support recommends clearing before redeploy or validation. Once the add-on and agent are healthy, you can deploy the **guestbook** example from [argoproj/argocd-example-apps](https://github.com/argoproj/argocd-example-apps) to a managed cluster named **`a-cluster`** as follows.
 
 ### Where the `Application` lives on the hub
 

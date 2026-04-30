@@ -3,9 +3,12 @@
 #
 # AppProject `managed-clusters-project` must exist on the hub (often created by ACM GitOps).
 #
+# Replace <managed-cluster> in destination.server (?agentName=…) with the hub ManagedCluster /
+# cluster secret name (PoV example: a-cluster).
+#
 # Apply (hostname only, no https:// — from repo root):
 #   set -a && [ -f envsubst.env ] && . envsubst.env && set +a
-#   envsubst '${PRINCIPAL_ROUTE_HOST}' < ACM-implementation/applications/guestbook-a-cluster.yaml | oc apply -f -
+#   envsubst '${PRINCIPAL_ROUTE_HOST}' < ACM-implementation/applications/guestbook-managed-cluster.yaml | oc apply -f -
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -18,7 +21,7 @@ spec:
     targetRevision: HEAD
     path: guestbook
   destination:
-    server: https://${PRINCIPAL_ROUTE_HOST}/?agentName=a-cluster
+    server: https://${PRINCIPAL_ROUTE_HOST}/?agentName=<managed-cluster>
     namespace: guestbook-deploy
   syncPolicy:
     automated:

@@ -46,6 +46,8 @@ Then apply the Argo CD instance:
 oc apply -f principal/argocd/argocd-principal.yaml
 ```
 
+**Note:** Replace each **`<managed-cluster>`** in **`ARGOCD_PRINCIPAL_ALLOWED_NAMESPACES`** in that file with your spoke hub identifiers before apply (PoV example: **`a-cluster`**, **`b-cluster`**).
+
 Verify the instance and workloads:
 
 ```bash
@@ -65,13 +67,14 @@ Follow [Enabling Argo CD Agent](https://docs.redhat.com/en/documentation/red_hat
 - **ManagedClusterSet**: your spokes must belong to the set referenced by the binding (here **`poc-acm`**). Confirm on the hub, for example:
 
 ```bash
-oc get managedcluster a-cluster -o jsonpath='{.metadata.labels.cluster\.open-cluster-management\.io/clusterset}{"\n"}'
-oc get managedcluster b-cluster -o jsonpath='{.metadata.labels.cluster\.open-cluster-management\.io/clusterset}{"\n"}'
+# PoV example: a-cluster, b-cluster
+oc get managedcluster <managed-cluster> -o jsonpath='{.metadata.labels.cluster\.open-cluster-management\.io/clusterset}{"\n"}'
+oc get managedcluster <managed-cluster> -o jsonpath='{.metadata.labels.cluster\.open-cluster-management\.io/clusterset}{"\n"}'
 ```
 
 If your set name differs, change **`poc-acm`** in [`managedclustersetbinding-poc-acm.yaml`](managedclustersetbinding-poc-acm.yaml) (both `metadata.name` / `spec.clusterSet`) and in [`placement-managed-clusters.yaml`](placement-managed-clusters.yaml) under `spec.clusterSets`.
 
-- **ManagedCluster labels**: the placement keeps a predicate on label **`name`** ∈ `a-cluster`, `b-cluster`. Ensure each `ManagedCluster` has `metadata.labels.name` set accordingly, or edit [`placement-managed-clusters.yaml`](placement-managed-clusters.yaml) (`matchExpressions` / `values`).
+- **ManagedCluster labels**: the placement keeps a predicate on label **`name`** ∈ **`<managed-cluster>`** (one entry per spoke; PoV example: **`a-cluster`**, **`b-cluster`**). Ensure each `ManagedCluster` has `metadata.labels.name` set accordingly, or edit [`placement-managed-clusters.yaml`](placement-managed-clusters.yaml) (`matchExpressions` / `values`).
 
 ### Stale `Policy` objects (before deploy, restart, or validation)
 
@@ -142,7 +145,7 @@ If you see **`reason":"NoManagedClusterMatched"`** and **`message":"No ManagedCl
 
 - Confirm **`ManagedClusterSetBinding`** exists and **`spec.clusterSet`** matches the set your clusters use (`oc get managedcluster <name> -o jsonpath='{.metadata.labels.cluster\.open-cluster-management\.io/clusterset}{"\n"}'`).
 - Align **`spec.clusterSets`** on the `Placement` with that set name (here **`poc-acm`**).
-- Align the **label predicate** (`metadata.labels.name` with values `a-cluster` / `b-cluster`) with the real labels on each `ManagedCluster`, or edit [`placement-managed-clusters.yaml`](placement-managed-clusters.yaml).
+- Align the **label predicate** (`metadata.labels.name` with values **`<managed-cluster>`** — PoV example: **`a-cluster`** / **`b-cluster`**) with the real labels on each `ManagedCluster`, or edit [`placement-managed-clusters.yaml`](placement-managed-clusters.yaml).
 
 If the controller does not populate the agent principal address and you need to override it (see the documentation for `serverAddress` / `serverPort` under `spec.gitopsAddon.argoCDAgent`), patch the `GitOpsCluster` after checking your Argo CD Agent principal Route hostname, for example:
 
@@ -152,9 +155,9 @@ oc get route -n openshift-gitops
 
 ---
 
-## Step 4 — Deploy a sample Application to managed cluster `a-cluster`
+## Step 4 — Deploy a sample Application to managed cluster `<managed-cluster>`
 
-After the GitOps add-on and Argo CD Agent are healthy, deploy the **guestbook** example from [argoproj/argocd-example-apps](https://github.com/argoproj/argocd-example-apps) to spoke **`a-cluster`**.
+After the GitOps add-on and Argo CD Agent are healthy, deploy the **guestbook** example from [argoproj/argocd-example-apps](https://github.com/argoproj/argocd-example-apps) to spoke **`<managed-cluster>`** (PoV example: **`a-cluster`**).
 
 ### Where the `Application` lives on the hub
 
@@ -169,10 +172,10 @@ Set **`PRINCIPAL_ROUTE_HOST`** to the Argo CD Agent **principal** Route hostname
 ```bash
 oc config use-context principal
 set -a && [ -f envsubst.env ] && . envsubst.env && set +a
-envsubst '${PRINCIPAL_ROUTE_HOST}' < ACM-implementation/applications/guestbook-a-cluster.yaml | oc apply -f -
+envsubst '${PRINCIPAL_ROUTE_HOST}' < ACM-implementation/applications/guestbook-managed-cluster.yaml | oc apply -f -
 ```
 
-This expands `destination.server` to `https://<PRINCIPAL_ROUTE_HOST>/?agentName=a-cluster` (agent routing to managed cluster **`a-cluster`**). Adjust `agentName` in the YAML if your hub cluster secret name differs.
+Replace **`<managed-cluster>`** in the manifest with your hub cluster secret name before apply if needed (PoV example: **`a-cluster`**). This expands `destination.server` to `https://<PRINCIPAL_ROUTE_HOST>/?agentName=<managed-cluster>` (agent routing to that managed cluster). Adjust `agentName` in the YAML if your hub cluster secret name differs.
 
 ### Verify
 
@@ -182,10 +185,10 @@ On the **hub**:
 oc get application guestbook -n openshift-gitops -o yaml
 ```
 
-On **managed cluster `a-cluster`** after a successful sync (workloads go to **`guestbook-deploy`** on the spoke):
+On the **managed cluster** **`<managed-cluster>`** (PoV example: **`a-cluster`**) after a successful sync (workloads go to **`guestbook-deploy`** on the spoke):
 
 ```bash
-oc get deploy,svc -n guestbook-deploy --context a-cluster
+oc get deploy,svc -n guestbook-deploy --context <managed-cluster>
 ```
 
 Ensure namespace **`guestbook-deploy`** exists on the spoke or that Argo CD / the `AppProject` allows creating it, and that **`managed-clusters-project`** permits the destination.

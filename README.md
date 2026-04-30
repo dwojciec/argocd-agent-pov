@@ -4,6 +4,8 @@
 
 This repository provides manifests and scripts to validate **OpenShift GitOps / Argo CD Agent** across three separate OpenShift clusters.
 
+You can follow this PoV in **two ways**. **With Red Hat ACM (Advanced Cluster Management)**, GitOps integration (`GitOpsCluster`, `Placement`, add-on, and related operators) automates much of the hub–spoke wiring; use [`ACM-implementation/README.md`](ACM-implementation/README.md) together with the optional ACM guestbook section later in this file. **Without ACM**, you run the flow **step by step** yourself—operators, PKI, Helm, and manifests—to establish communication between the **principal** cluster and one or more **managed** (or autonomous) spokes; that path is the main body of this README and the detailed manuals linked below.
+
 **Detailed walkthrough (tasks T01–T60)** : [`step-by-step.md`](step-by-step.md) · *French:* [`Etape-par-etape.md`](Etape-par-etape.md).
 
 **Non-`cluster-admin` users (e.g. `user1`) — creating apps on the `managed-cluster` spoke in managed mode** : roles, `AppProject`, Argo CD / Kubernetes RBAC : [`docs/developer-user1.md`](docs/developer-user1.md) · *French:* [`docs/utilisateur-developpeur-user1.md`](docs/utilisateur-developpeur-user1.md).
@@ -37,7 +39,7 @@ argocd-agent-multicluster-pov/
 │   ├── validation-applications.md
 │   ├── developer-user1.md
 │   └── utilisateur-developpeur-user1.md
-├── ACM-implementation/        # Red Hat ACM: Placement, GitOpsCluster, guestbook → a-cluster
+├── ACM-implementation/        # Red Hat ACM: Placement, GitOpsCluster, guestbook → <managed-cluster> (e.g. a-cluster)
 │   ├── README.md
 │   └── applications/
 ├── principal/                 # PRINCIPAL cluster (hub)
@@ -298,9 +300,9 @@ On the hub: `Application` **`sample-managed-demo`** in namespace **`managed-clus
 
 ---
 
-## ACM GitOps (optional) — Guestbook on managed cluster `a-cluster`
+## ACM GitOps (optional) — Guestbook on managed cluster `<managed-cluster>`
 
-If you enable the GitOps add-on and Argo CD Agent through **Red Hat Advanced Cluster Management** (`GitOpsCluster`, `Placement`, and so on), the end-to-end hub setup is documented under [`ACM-implementation/README.md`](ACM-implementation/README.md) — including a **pre-check** on stale hub **`Policy`** resources (`oc get policy`) that support recommends clearing before redeploy or validation. Once the add-on and agent are healthy, you can deploy the **guestbook** example from [argoproj/argocd-example-apps](https://github.com/argoproj/argocd-example-apps) to a managed cluster named **`a-cluster`** as follows.
+If you enable the GitOps add-on and Argo CD Agent through **Red Hat Advanced Cluster Management** (`GitOpsCluster`, `Placement`, and so on), the end-to-end hub setup is documented under [`ACM-implementation/README.md`](ACM-implementation/README.md) — including a **pre-check** on stale hub **`Policy`** resources (`oc get policy`) that support recommends clearing before redeploy or validation. Once the add-on and agent are healthy, you can deploy the **guestbook** example from [argoproj/argocd-example-apps](https://github.com/argoproj/argocd-example-apps) to a spoke whose hub name is **`<managed-cluster>`** (PoV example: **`a-cluster`**) as follows.
 
 ### Where the `Application` lives on the hub
 
@@ -313,10 +315,10 @@ The manifest embeds **`${PRINCIPAL_ROUTE_HOST}`** in `destination.server` (hostn
 ```bash
 oc config use-context principal
 set -a && [ -f envsubst.env ] && . envsubst.env && set +a
-envsubst '${PRINCIPAL_ROUTE_HOST}' < ACM-implementation/applications/guestbook-a-cluster.yaml | oc apply -f -
+envsubst '${PRINCIPAL_ROUTE_HOST}' < ACM-implementation/applications/guestbook-managed-cluster.yaml | oc apply -f -
 ```
 
-This yields `https://<host>/?agentName=a-cluster` and deploys the guestbook manifests into **`guestbook-deploy`** on the spoke. Change `agentName` or `destination.namespace` in [`ACM-implementation/applications/guestbook-a-cluster.yaml`](ACM-implementation/applications/guestbook-a-cluster.yaml) if your cluster secret name or target namespace differs.
+Replace **`<managed-cluster>`** in the manifest with your hub cluster secret name before apply if you did not already edit the file (PoV example: **`a-cluster`**). This yields `https://<host>/?agentName=<managed-cluster>` and deploys the guestbook manifests into **`guestbook-deploy`** on the spoke. Change `agentName` or `destination.namespace` in [`ACM-implementation/applications/guestbook-managed-cluster.yaml`](ACM-implementation/applications/guestbook-managed-cluster.yaml) if your cluster secret name or target namespace differs.
 
 ### Verify
 
@@ -326,10 +328,10 @@ On the **hub**:
 oc get application guestbook -n openshift-gitops -o yaml
 ```
 
-On **managed cluster `a-cluster`** after a successful sync:
+On the **managed cluster** (kube context or name **`<managed-cluster>`**; PoV example: **`a-cluster`**) after a successful sync:
 
 ```bash
-oc get deploy,svc -n guestbook-deploy --context a-cluster
+oc get deploy,svc -n guestbook-deploy --context <managed-cluster>
 ```
 
 Ensure **`guestbook-deploy`** exists on the spoke or can be created, and that **`managed-clusters-project`** allows that destination.
@@ -384,7 +386,7 @@ oc apply -f autonomous-cluster/applications/sample-application-autonomous-cluste
 | `oc apply -k managed-cluster/…`, managed Helm | **managed-cluster** |
 | `oc apply -k autonomous-cluster/…`, autonomous Helm | **autonomous-cluster** |
 | `sample-application-managed-cluster1.yaml` | **principal** (hub `Application` namespace `managed-cluster`) |
-| `envsubst … guestbook-a-cluster.yaml` (ACM path) | **principal** (hub `Application` in `openshift-gitops`; spoke namespace `guestbook-deploy` on `a-cluster`) |
+| `envsubst … guestbook-managed-cluster.yaml` (ACM path) | **principal** (hub `Application` in `openshift-gitops`; spoke namespace `guestbook-deploy` on `<managed-cluster>` — e.g. `a-cluster`) |
 | `sample-application-autonomous-cluster2.yaml` | **autonomous-cluster** (namespace `argocd`) |
 
 ---

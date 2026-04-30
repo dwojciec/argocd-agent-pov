@@ -1,5 +1,6 @@
 # Instance Argo CD « control plane » : UI/API sur le principal, contrôleur désactivé, Principal activé.
 # Contrainte connue : ne pas réutiliser une instance Argo CD existante avec controller activé pour le même namespace.
+# Remplacer chaque <managed-cluster> dans ARGOCD_PRINCIPAL_ALLOWED_NAMESPACES par le nom du spoke (ex. PoV : a-cluster, b-cluster).
 apiVersion: argoproj.io/v1beta1
 kind: ArgoCD
 metadata:
@@ -16,8 +17,9 @@ spec:
       env:
         - name: ARGOCD_PRINCIPAL_DESTINATION_BASED_MAPPING
           value: 'true'
+        # PoV example (two spokes): openshift-gitops,a-cluster,b-cluster
         - name: ARGOCD_PRINCIPAL_ALLOWED_NAMESPACES
-          value: 'openshift-gitops,a-cluster,b-cluster'    
+          value: 'openshift-gitops,<managed-cluster>,<managed-cluster>'
       tls:
         insecureGenerate: false
       jwt:

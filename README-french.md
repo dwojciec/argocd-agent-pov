@@ -4,6 +4,8 @@
 
 Ce dépôt fournit les manifests et scripts pour valider **OpenShift GitOps / Argo CD Agent** sur trois clusters OpenShift distincts.
 
+**Deux approches** sont possibles. **Avec Red Hat ACM (Advanced Cluster Management)**, l’intégration GitOps (`GitOpsCluster`, `Placement`, add-on GitOps et opérateurs associés) automatise une grande partie du câblage hub–spoke ; suivez [`ACM-implementation/README.md`](ACM-implementation/README.md) (en anglais) et, pour l’exemple guestbook déployé depuis le hub, la section ACM optionnelle du [`README.md`](README.md). **Sans ACM**, vous exécutez vous-même les **étapes une à une** — opérateurs, PKI, Helm, manifests — pour établir la communication entre le cluster **principal** et un ou plusieurs spokes **managed** (ou **autonomous**) ; ce parcours correspond au corps de ce guide et aux manuels détaillés liés juste après.
+
 **Guide manuel détaillé (tâches T01–T60, explications pas à pas)** : [`Etape-par-etape.md`](Etape-par-etape.md) · *English:* [`step-by-step.md`](step-by-step.md).
 
 **Utilisateur non `cluster-admin` (ex. `user1`) — créer des apps sur le spoke `managed-cluster` en mode managed** : rôles, `AppProject`, RBAC Argo CD / Kubernetes : [`docs/utilisateur-developpeur-user1.md`](docs/utilisateur-developpeur-user1.md) · *English:* [`docs/developer-user1.md`](docs/developer-user1.md).

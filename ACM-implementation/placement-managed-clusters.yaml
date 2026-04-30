@@ -1,6 +1,6 @@
-# Selects managed clusters a-cluster and b-cluster within ManagedClusterSet `poc-acm`
+# Selects managed clusters by label `name` within ManagedClusterSet `poc-acm`
 # (requires ManagedClusterSetBinding in this namespace).
-# Requires each ManagedCluster to carry: metadata.labels.name in { a-cluster, b-cluster }.
+# Replace each `values` entry with your ManagedCluster label (PoV example: a-cluster, b-cluster).
 apiVersion: cluster.open-cluster-management.io/v1beta1
 kind: Placement
 metadata:
@@ -16,5 +16,5 @@ spec:
             - key: name
               operator: In
               values:
-                - a-cluster
-                - b-cluster
+                - <managed-cluster>
+                - <managed-cluster>

@@ -1,0 +1,23 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: test-app-cluster-a
+  namespace: openshift-gitops
+  labels:
+    test.argocd-agent-pov/calopezb: "true"
+    test.argocd-agent-pov/scenario: cluster-a-only
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/dwojciec/argocd-agent-pov.git
+    targetRevision: main
+    path: ACM-implementation/workloads/openshift-demo
+  destination:
+    name: a-cluster
+    namespace: guestbook-a
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

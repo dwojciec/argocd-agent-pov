@@ -1,0 +1,51 @@
+# Argo CD requires one Application per destination. This file deploys the same
+# guestbook demo to cluster-A and cluster-B (scenario: both clusters).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: test-app-both-a
+  namespace: openshift-gitops
+  labels:
+    test.argocd-agent-pov/calopezb: "true"
+    test.argocd-agent-pov/scenario: both-clusters
+    test.argocd-agent-pov/multi-group: guestbook-multi
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/dwojciec/argocd-agent-pov.git
+    targetRevision: main
+    path: ACM-implementation/workloads/openshift-demo
+  destination:
+    name: a-cluster
+    namespace: guestbook-multi
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: test-app-both-b
+  namespace: openshift-gitops
+  labels:
+    test.argocd-agent-pov/calopezb: "true"
+    test.argocd-agent-pov/scenario: both-clusters
+    test.argocd-agent-pov/multi-group: guestbook-multi
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/dwojciec/argocd-agent-pov.git
+    targetRevision: main
+    path: ACM-implementation/workloads/openshift-demo
+  destination:
+    name: b-cluster
+    namespace: guestbook-multi
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

@@ -1,0 +1,23 @@
+# Hub AppProject for autonomous agent apps mirrored from spoke project "${SPOKE_PROJECT}".
+# Agent naming on the principal: {SPOKE_CLUSTER_NAME}-{SPOKE_PROJECT} (e.g. a-cluster-default).
+# Apply on the hub after enabling autonomous mode for the spoke.
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: ${SPOKE_CLUSTER_NAME}-${SPOKE_PROJECT}
+  namespace: ${GITOPS_NAMESPACE}
+  labels:
+    argocd-agent-pov/mode: autonomous
+    argocd-agent-pov/spoke: ${SPOKE_CLUSTER_NAME}
+spec:
+  description: "Autonomous spoke ${SPOKE_CLUSTER_NAME} — mirrored AppProject ${SPOKE_PROJECT}"
+  sourceRepos:
+    - "*"
+  destinations:
+    - name: ${SPOKE_CLUSTER_NAME}
+      namespace: "*"
+  sourceNamespaces:
+    - ${SPOKE_CLUSTER_NAME}
+  clusterResourceWhitelist:
+    - group: "*"
+      kind: "*"

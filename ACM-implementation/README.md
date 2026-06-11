@@ -154,12 +154,17 @@ envsubst '${GITOPS_NAMESPACE} ${GIT_REPO_URL} ${GIT_TARGET_REVISION} ${WORKLOAD_
 
 ### Autonomous mode (spoke)
 
-On each autonomous spoke:
+On each autonomous spoke, create AppProjects first (required for hub UI — project `{spoke}-default`):
 
 ```bash
 set -a && source envsubst.env && source ACM-implementation/clusters.env && set +a
-export ARGOCD_NAMESPACE=openshift-gitops   # ACM add-on default; use argocd for manual PoV
-oc config use-context <autonomous-spoke>
+./ACM-implementation/scripts/apply-autonomous-appprojects.sh
+```
+
+Then deploy the test Application:
+
+```bash
+export SPOKE_CONTEXT=<autonomous-spoke>   # e.g. a-cluster
 ./ACM-implementation/scripts/apply-autonomous-test-app.sh <spoke-name>
 ```
 

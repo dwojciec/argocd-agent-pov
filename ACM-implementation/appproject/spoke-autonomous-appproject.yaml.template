@@ -1,0 +1,20 @@
+# Spoke AppProject for autonomous mode. The agent syncs it to the hub as
+# {SPOKE_CLUSTER_NAME}-{SPOKE_PROJECT}. Apply on each autonomous spoke.
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: ${SPOKE_PROJECT}
+  namespace: ${ARGOCD_NAMESPACE}
+  labels:
+    argocd-agent-pov/mode: autonomous
+    argocd-agent-pov/spoke: ${SPOKE_CLUSTER_NAME}
+spec:
+  description: "Autonomous spoke ${SPOKE_CLUSTER_NAME} — local project ${SPOKE_PROJECT}"
+  sourceRepos:
+    - "*"
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: "*"
+  clusterResourceWhitelist:
+    - group: "*"
+      kind: "*"

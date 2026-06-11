@@ -1,11 +1,14 @@
-# Instance Argo CD « control plane » : UI/API sur le principal, contrôleur désactivé, Principal activé.
-# Prefer rendering argocd-principal.yaml.template with envsubst (see clusters.env.example).
-# If you edit this file directly, replace ARGOCD_PRINCIPAL_ALLOWED_NAMESPACES with your spoke hub names.
+# Argo CD control plane on the hub: UI/API enabled, application controller disabled, Principal enabled.
+# Render before apply:
+#   set -a && source envsubst.env && source ACM-implementation/clusters.env && set +a
+#   export ARGOCD_PRINCIPAL_ALLOWED_NAMESPACES="$(./ACM-implementation/scripts/build-allowed-namespaces.sh)"
+#   envsubst '${PRINCIPAL_NS} ${ARGOCD_PRINCIPAL_ALLOWED_NAMESPACES}' \
+#     < principal/argocd/argocd-principal.yaml.template | oc apply -f -
 apiVersion: argoproj.io/v1beta1
 kind: ArgoCD
 metadata:
   name: principal
-  namespace: openshift-gitops
+  namespace: ${PRINCIPAL_NS}
 spec:
   controller:
     enabled: false
@@ -18,12 +21,11 @@ spec:
         - name: ARGOCD_PRINCIPAL_DESTINATION_BASED_MAPPING
           value: 'true'
         - name: ARGOCD_PRINCIPAL_ALLOWED_NAMESPACES
-          value: 'openshift-gitops,agent-managed,agent-autonomous,<managed-cluster>'
+          value: '${ARGOCD_PRINCIPAL_ALLOWED_NAMESPACES}'
       tls:
         insecureGenerate: false
       jwt:
         insecureGenerate: false
-  # Namespaces du hub où des Application peuvent être définies (Apps in any namespace).
   sourceNamespaces:
     - "agent-managed"
     - "agent-autonomous"

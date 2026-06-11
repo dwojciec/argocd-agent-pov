@@ -1,0 +1,24 @@
+# Managed-mode demo Application — apply on the PRINCIPAL cluster only.
+# destination.name must match the hub cluster secret name (cluster-<name> → name: <name>).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: sample-managed-demo
+  namespace: agent-managed
+  labels:
+    test.argocd-agent-pov/mode: managed
+spec:
+  project: default
+  destination:
+    name: ${MANAGED_SPOKE_CLUSTER}
+    namespace: ${MANAGED_DEMO_NAMESPACE}
+  source:
+    repoURL: ${GIT_REPO_URL}
+    path: ${WORKLOAD_PATH_KUSTOMIZE}
+    targetRevision: ${GIT_TARGET_REVISION}
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

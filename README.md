@@ -16,6 +16,26 @@ You can follow this PoV in **two ways**. **With Red Hat ACM (Advanced Cluster Ma
 | **managed-cluster** | Spoke: **managed agent** | The hub is the source of truth for `Application` resources |
 | **autonomous-cluster** | Spoke: **autonomous agent** | `Application` resources are defined on the spoke and surfaced to the hub |
 
+### Choose agent operation modes
+
+For each workload cluster, decide on the operational mode (see also [Choose Agent Operation Modes](https://argocd-agent.readthedocs.io/latest/user-guide/migration/#choose-agent-operation-modes) in the upstream migration guide):
+
+**[Managed mode](https://argocd-agent.readthedocs.io/latest/concepts/agent-modes/managed/)** — choose when:
+
+- You want centralized application management
+- Applications are deployed from the control plane
+- You need consistent policy enforcement across clusters
+- Network connectivity is generally reliable
+
+**[Autonomous mode](https://argocd-agent.readthedocs.io/latest/concepts/agent-modes/autonomous/)** — choose when:
+
+- Clusters need to operate independently
+- Applications are managed via GitOps (app-of-apps pattern) directly on the workload clusters
+- Air-gapped or highly autonomous environments
+- Network connectivity is unreliable or restricted
+
+You can run different agents in different modes. For example, development clusters in managed mode and production clusters in autonomous mode. This PoV exercises **both** modes side by side: `managed-cluster` (managed) and `autonomous-cluster` (autonomous).
+
 Useful references:
 
 - [Using the Argo CD Agent with OpenShift GitOps (Red Hat)](https://developers.redhat.com/blog/2025/10/06/using-argo-cd-agent-openshift-gitops)
@@ -39,8 +59,10 @@ argocd-agent-multicluster-pov/
 │   ├── validation-applications.md
 │   ├── developer-user1.md
 │   └── utilisateur-developpeur-user1.md
-├── ACM-implementation/        # Red Hat ACM: Placement, GitOpsCluster, guestbook → <managed-cluster> (e.g. a-cluster)
+├── ACM-implementation/        # Red Hat ACM: Placement, GitOpsCluster (managed / autonomous modes)
 │   ├── README.md
+│   ├── clusters.env.example
+│   ├── scripts/
 │   └── applications/
 ├── principal/                 # PRINCIPAL cluster (hub)
 │   ├── operator/
@@ -296,45 +318,35 @@ On the **principal**:
 oc apply -f principal/applications/sample-application-managed-cluster1.yaml
 ```
 
-On the hub: `Application` **`sample-managed-demo`** in namespace **`managed-cluster`**, destination **`name: managed-cluster`**, status **Synced** / **Healthy**. On the **managed-cluster** spoke: `oc get deploy,svc -n default` — chart resources (names depend on the Helm release).
+On the hub: `Application` **`sample-managed-demo`** in namespace **`agent-managed`**, destination **`name: managed-cluster`**, status **Synced** / **Healthy**. On the **managed-cluster** spoke: `oc get deploy,svc -n demo-managed` — `demo-app` **Running** (OpenShift-compatible workload).
 
 ---
 
-## ACM GitOps (optional) — Guestbook on managed cluster `<managed-cluster>`
+## ACM GitOps (optional) — managed and autonomous modes
 
-If you enable the GitOps add-on and Argo CD Agent through **Red Hat Advanced Cluster Management** (`GitOpsCluster`, `Placement`, and so on), the end-to-end hub setup is documented under [`ACM-implementation/README.md`](ACM-implementation/README.md) — including a **pre-check** on stale hub **`Policy`** resources (`oc get policy`) that support recommends clearing before redeploy or validation. Once the add-on and agent are healthy, you can deploy the **guestbook** example from [argoproj/argocd-example-apps](https://github.com/argoproj/argocd-example-apps) to a spoke whose hub name is **`<managed-cluster>`** (PoV example: **`a-cluster`**) as follows.
-
-### Where the `Application` lives on the hub
-
-The sample uses **`metadata.namespace: openshift-gitops`** so Argo CD reconciles the `Application` alongside the hub instance in that namespace. The namespace must be listed under **`spec.sourceNamespaces`** — see [`principal/argocd/argocd-principal.yaml`](principal/argocd/argocd-principal.yaml). The manifest uses **`project: managed-clusters-project`**; that `AppProject` must exist (ACM GitOps commonly provides it).
-
-### Apply (hub context)
-
-The manifest embeds **`${PRINCIPAL_ROUTE_HOST}`** in `destination.server` (hostname only — no `https://`). Copy [`envsubst.env.example`](envsubst.env.example) to `envsubst.env`, set `PRINCIPAL_ROUTE_HOST`, then:
+If you enable the GitOps add-on and Argo CD Agent through **Red Hat Advanced Cluster Management**, follow [`ACM-implementation/README.md`](ACM-implementation/README.md). Configure spoke names and modes in **`ACM-implementation/clusters.env`** (from `clusters.env.example`):
 
 ```bash
-oc config use-context principal
-set -a && [ -f envsubst.env ] && . envsubst.env && set +a
-envsubst '${PRINCIPAL_ROUTE_HOST}' < ACM-implementation/applications/guestbook-managed-cluster.yaml | oc apply -f -
+cp ACM-implementation/clusters.env.example ACM-implementation/clusters.env
+# MANAGED_SPOKE_CLUSTERS=spoke-1,spoke-2
+# AUTONOMOUS_SPOKE_CLUSTERS=spoke-3
 ```
 
-Replace **`<managed-cluster>`** in the manifest with your hub cluster secret name before apply if you did not already edit the file (PoV example: **`a-cluster`**). This yields `https://<host>/?agentName=<managed-cluster>` and deploys the guestbook manifests into **`guestbook-deploy`** on the spoke. Change `agentName` or `destination.namespace` in [`ACM-implementation/applications/guestbook-managed-cluster.yaml`](ACM-implementation/applications/guestbook-managed-cluster.yaml) if your cluster secret name or target namespace differs.
-
-### Verify
-
-On the **hub**:
+Apply GitOpsCluster resources (separate placements for **managed** and **autonomous**):
 
 ```bash
-oc get application guestbook -n openshift-gitops -o yaml
+set -a && source envsubst.env && source ACM-implementation/clusters.env && set +a
+./ACM-implementation/scripts/apply-gitopsclusters.sh
 ```
 
-On the **managed cluster** (kube context or name **`<managed-cluster>`**; PoV example: **`a-cluster`**) after a successful sync:
+Deploy OpenShift-compatible test apps:
 
 ```bash
-oc get deploy,svc -n guestbook-deploy --context <managed-cluster>
+./ACM-implementation/scripts/apply-managed-test-apps.sh          # hub — managed spokes
+./ACM-implementation/scripts/apply-autonomous-test-app.sh <spoke>  # each autonomous spoke
 ```
 
-Ensure **`guestbook-deploy`** exists on the spoke or can be created, and that **`managed-clusters-project`** allows that destination.
+See [`docs/validation-applications.md`](docs/validation-applications.md) for success criteria.
 
 ---
 
@@ -367,7 +379,7 @@ envsubst < autonomous-cluster/helm/values-autonomous.yaml.template | \
 
 ## Step 6 — **Autonomous** validation (autonomous-cluster)
 
-Same **`helm-guestbook`** demo as managed (file and checks: [`docs/validation-applications.md`](docs/validation-applications.md)). Apply the `Application` **on autonomous-cluster** (not on the principal):
+OpenShift-compatible demo (checks: [`docs/validation-applications.md`](docs/validation-applications.md)). Apply the `Application` **on autonomous-cluster** (not on the principal):
 
 ```bash
 oc apply -f autonomous-cluster/applications/sample-application-autonomous-cluster2.yaml --context autonomous-cluster
@@ -385,8 +397,9 @@ oc apply -f autonomous-cluster/applications/sample-application-autonomous-cluste
 | `bootstrap-argocd-agentctl.sh`, AppProject patch, managed `Application` | **principal** (script creates required spoke namespaces first; PKI uses contexts for managed-cluster / autonomous-cluster) |
 | `oc apply -k managed-cluster/…`, managed Helm | **managed-cluster** |
 | `oc apply -k autonomous-cluster/…`, autonomous Helm | **autonomous-cluster** |
-| `sample-application-managed-cluster1.yaml` | **principal** (hub `Application` namespace `managed-cluster`) |
-| `envsubst … guestbook-managed-cluster.yaml` (ACM path) | **principal** (hub `Application` in `openshift-gitops`; spoke namespace `guestbook-deploy` on `<managed-cluster>` — e.g. `a-cluster`) |
+| `sample-application-managed-cluster1.yaml` | **principal** (hub `Application` namespace `agent-managed`) |
+| `apply-gitopsclusters.sh` / `apply-managed-test-apps.sh` (ACM) | **principal** (configure `clusters.env` first) |
+| `apply-autonomous-test-app.sh` (ACM) | **autonomous spoke** |
 | `sample-application-autonomous-cluster2.yaml` | **autonomous-cluster** (namespace `argocd`) |
 
 ---

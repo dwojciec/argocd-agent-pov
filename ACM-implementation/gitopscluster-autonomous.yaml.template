@@ -1,0 +1,22 @@
+# Registers autonomous-mode spokes (selected by placement-autonomous-spokes) with the hub
+# Argo CD instance and enables the GitOps add-on with Argo CD Agent in autonomous mode.
+apiVersion: apps.open-cluster-management.io/v1beta1
+kind: GitOpsCluster
+metadata:
+  name: gitops-agent-autonomous-spokes
+  namespace: ${GITOPS_NAMESPACE}
+spec:
+  argoServer:
+    argoNamespace: ${GITOPS_NAMESPACE}
+  placementRef:
+    apiVersion: cluster.open-cluster-management.io/v1beta1
+    kind: Placement
+    name: placement-autonomous-spokes
+    namespace: ${GITOPS_NAMESPACE}
+  gitopsAddon:
+    enabled: true
+    overrideExistingConfigs: true
+    argoCDAgent:
+      enabled: true
+      propagateHubCA: true
+      mode: autonomous

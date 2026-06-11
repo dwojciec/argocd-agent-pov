@@ -1,0 +1,23 @@
+# Autonomous-mode demo Application — apply on the AUTONOMOUS spoke only (not on the hub).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: sample-autonomous-demo
+  namespace: ${ARGOCD_NAMESPACE}
+  labels:
+    test.argocd-agent-pov/mode: autonomous
+spec:
+  project: default
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: ${AUTONOMOUS_DEMO_NAMESPACE}
+  source:
+    repoURL: ${GIT_REPO_URL}
+    path: ${WORKLOAD_PATH_KUSTOMIZE}
+    targetRevision: ${GIT_TARGET_REVISION}
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

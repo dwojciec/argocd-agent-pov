@@ -1,0 +1,24 @@
+# Spoke-side Application (autonomous mode). Apply on the autonomous spoke, not on the hub.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: ${APP_NAME}
+  namespace: ${ARGOCD_NAMESPACE}
+  labels:
+    test.argocd-agent-pov/mode: autonomous
+    test.argocd-agent-pov/spoke: ${SPOKE_CLUSTER_NAME}
+spec:
+  project: default
+  source:
+    repoURL: ${GIT_REPO_URL}
+    targetRevision: ${GIT_TARGET_REVISION}
+    path: ${WORKLOAD_PATH}
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: ${TARGET_NAMESPACE}
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

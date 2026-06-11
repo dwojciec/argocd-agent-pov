@@ -1,0 +1,24 @@
+# Hub-side Application (managed mode). Render with apply-managed-test-apps.sh or envsubst.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: ${APP_NAME}
+  namespace: ${GITOPS_NAMESPACE}
+  labels:
+    test.argocd-agent-pov/mode: managed
+    test.argocd-agent-pov/spoke: ${SPOKE_CLUSTER_NAME}
+spec:
+  project: default
+  source:
+    repoURL: ${GIT_REPO_URL}
+    targetRevision: ${GIT_TARGET_REVISION}
+    path: ${WORKLOAD_PATH}
+  destination:
+    name: ${SPOKE_CLUSTER_NAME}
+    namespace: ${TARGET_NAMESPACE}
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

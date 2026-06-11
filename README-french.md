@@ -4,7 +4,7 @@
 
 Ce dépôt fournit les manifests et scripts pour valider **OpenShift GitOps / Argo CD Agent** sur trois clusters OpenShift distincts.
 
-**Deux approches** sont possibles. **Avec Red Hat ACM (Advanced Cluster Management)**, l’intégration GitOps (`GitOpsCluster`, `Placement`, add-on GitOps et opérateurs associés) automatise une grande partie du câblage hub–spoke ; suivez [`ACM-implementation/README.md`](ACM-implementation/README.md) (en anglais) et, pour l’exemple guestbook déployé depuis le hub, la section ACM optionnelle du [`README.md`](README.md). **Sans ACM**, vous exécutez vous-même les **étapes une à une** — opérateurs, PKI, Helm, manifests — pour établir la communication entre le cluster **principal** et un ou plusieurs spokes **managed** (ou **autonomous**) ; ce parcours correspond au corps de ce guide et aux manuels détaillés liés juste après.
+**Deux approches** sont possibles. **Avec Red Hat ACM (Advanced Cluster Management)**, l’intégration GitOps (`GitOpsCluster`, `Placement`, add-on GitOps et opérateurs associés) automatise une grande partie du câblage hub–spoke ; suivez [`ACM-implementation/README.md`](ACM-implementation/README.md) — modes **managed** et **autonomous** configurables via `clusters.env`. **Sans ACM**, vous exécutez vous-même les **étapes une à une** — opérateurs, PKI, Helm, manifests — pour établir la communication entre le cluster **principal** et un ou plusieurs spokes **managed** (ou **autonomous**) ; ce parcours correspond au corps de ce guide et aux manuels détaillés liés juste après.
 
 **Guide manuel détaillé (tâches T01–T60, explications pas à pas)** : [`Etape-par-etape.md`](Etape-par-etape.md) · *English:* [`step-by-step.md`](step-by-step.md).
 
@@ -15,6 +15,26 @@ Ce dépôt fournit les manifests et scripts pour valider **OpenShift GitOps / Ar
 | **principal** | Hub : UI Argo CD + composant **Principal** | — |
 | **managed-cluster** | Spoke : **Agent en mode managed** | Le hub est la source de vérité des `Application` |
 | **autonomous-cluster** | Spoke : **Agent en mode autonomous** | Les `Application` sont définies sur le spoke et remontées au hub |
+
+### Choisir le mode de fonctionnement de l’agent
+
+Pour chaque cluster workload, choisissez le mode opérationnel (voir aussi [Choose Agent Operation Modes](https://argocd-agent.readthedocs.io/latest/user-guide/migration/#choose-agent-operation-modes) dans le guide de migration upstream) :
+
+**[Mode managed](https://argocd-agent.readthedocs.io/latest/concepts/agent-modes/managed/)** — à privilégier lorsque :
+
+- Vous souhaitez une gestion centralisée des applications
+- Les applications sont déployées depuis le plan de contrôle (control plane)
+- Vous avez besoin d’une application cohérente des politiques sur l’ensemble des clusters
+- La connectivité réseau est généralement fiable
+
+**[Mode autonomous](https://argocd-agent.readthedocs.io/latest/concepts/agent-modes/autonomous/)** — à privilégier lorsque :
+
+- Les clusters doivent fonctionner de façon indépendante
+- Les applications sont gérées en GitOps (pattern app-of-apps) directement sur les clusters workload
+- Environnements air-gapped ou fortement autonomes
+- Connectivité réseau peu fiable ou restreinte
+
+Vous pouvez faire coexister des agents dans des modes différents — par exemple des clusters de développement en mode managed et des clusters de production en mode autonomous. Ce PoV illustre **les deux** modes en parallèle : `managed-cluster` (managed) et `autonomous-cluster` (autonomous).
 
 Références utiles :
 
@@ -285,7 +305,7 @@ envsubst < managed-cluster/helm/values-managed.yaml.template | \
 
 ## Étape 4 — Validation **managed** (principal → managed-cluster)
 
-Une application de test **minimale** est prévue : chart Helm **`helm-guestbook`** du dépôt public [argoproj/argocd-example-apps](https://github.com/argoproj/argocd-example-apps) (quelques ressources dans le namespace cible). Détail et critères : [`docs/validation-applications.md`](docs/validation-applications.md).
+Application de test **compatible OpenShift** (`nginx-unprivileged` sur le port 8080) : [`ACM-implementation/workloads/openshift-demo`](ACM-implementation/workloads/openshift-demo). Détail et critères : [`docs/validation-applications.md`](docs/validation-applications.md).
 
 Sur le **principal** :
 
@@ -293,7 +313,7 @@ Sur le **principal** :
 oc apply -f principal/applications/sample-application-managed-cluster1.yaml
 ```
 
-Vérifiez sur le hub : `Application` **`sample-managed-demo`** dans le namespace **`managed-cluster`**, destination **`name: managed-cluster`**, statut **Synced** / **Healthy**. Sur le spoke **managed-cluster** : `oc get deploy,svc -n default` — déploiement / service issus du chart (noms variables selon la release Helm du guestbook).
+Vérifiez sur le hub : `Application` **`sample-managed-demo`** dans le namespace **`agent-managed`**, destination **`name: managed-cluster`**, statut **Synced** / **Healthy**. Sur le spoke **managed-cluster** : `oc get deploy,svc -n demo-managed` — `demo-app` **Running**.
 
 ---
 
@@ -326,7 +346,7 @@ envsubst < autonomous-cluster/helm/values-autonomous.yaml.template | \
 
 ## Étape 6 — Validation **autonomous** (autonomous-cluster)
 
-Même démo **`helm-guestbook`** que pour le managed (fichier et critères : [`docs/validation-applications.md`](docs/validation-applications.md)). Déployez l’`Application` **sur autonomous-cluster** (pas sur le principal) :
+Même démo OpenShift-compatible que pour le managed (fichier et critères : [`docs/validation-applications.md`](docs/validation-applications.md)). Déployez l’`Application` **sur autonomous-cluster** (pas sur le principal) :
 
 ```bash
 oc apply -f autonomous-cluster/applications/sample-application-autonomous-cluster2.yaml --context autonomous-cluster

@@ -1,0 +1,27 @@
+# Hub-side Application (managed mode, ACM AppProject). Uses agent routing via principal Route.
+# Render:
+#   envsubst '${PRINCIPAL_ROUTE_HOST} ${SPOKE_CLUSTER_NAME} ${GIT_REPO_URL} ${GIT_TARGET_REVISION} ${WORKLOAD_PATH} ${GITOPS_NAMESPACE} ${TARGET_NAMESPACE}' \
+#     < ACM-implementation/applications/managed/demo-managed-spoke.yaml.template | oc apply -f -
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: demo-managed-${SPOKE_CLUSTER_NAME}
+  namespace: ${GITOPS_NAMESPACE}
+  labels:
+    test.argocd-agent-pov/mode: managed
+    test.argocd-agent-pov/spoke: ${SPOKE_CLUSTER_NAME}
+spec:
+  project: managed-clusters-project
+  source:
+    repoURL: ${GIT_REPO_URL}
+    targetRevision: ${GIT_TARGET_REVISION}
+    path: ${WORKLOAD_PATH}
+  destination:
+    server: https://${PRINCIPAL_ROUTE_HOST}/?agentName=${SPOKE_CLUSTER_NAME}
+    namespace: ${TARGET_NAMESPACE}
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

@@ -2,6 +2,7 @@
 # Fichiers locaux / variables (ne jamais versionner les valeurs réelles)
 # =============================================================================
 envsubst.env
+ACM-implementation/clusters.env
 .env
 .env.*
 !.env.example

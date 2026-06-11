@@ -1,0 +1,22 @@
+# Registers managed-mode spokes (selected by placement-managed-spokes) with the hub Argo CD
+# instance and enables the GitOps add-on with Argo CD Agent in managed mode.
+apiVersion: apps.open-cluster-management.io/v1beta1
+kind: GitOpsCluster
+metadata:
+  name: gitops-agent-managed-spokes
+  namespace: ${GITOPS_NAMESPACE}
+spec:
+  argoServer:
+    argoNamespace: ${GITOPS_NAMESPACE}
+  placementRef:
+    apiVersion: cluster.open-cluster-management.io/v1beta1
+    kind: Placement
+    name: placement-managed-spokes
+    namespace: ${GITOPS_NAMESPACE}
+  gitopsAddon:
+    enabled: true
+    overrideExistingConfigs: true
+    argoCDAgent:
+      enabled: true
+      propagateHubCA: true
+      mode: managed

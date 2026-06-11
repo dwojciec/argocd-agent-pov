@@ -1,6 +1,7 @@
+# GitOpsCluster / Placement / ManagedClusterSetBinding manifests are templates under
+# ACM-implementation/*.yaml.template — render them with:
+#   ./ACM-implementation/scripts/apply-gitopsclusters.sh
+# Do not use `oc apply -k ACM-implementation` for those resources.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
-resources:
-  - managedclustersetbinding-poc-acm.yaml
-  - placement-managed-clusters.yaml
-  - gitopscluster-argocd-agent.yaml
+resources: []

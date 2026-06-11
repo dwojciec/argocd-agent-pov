@@ -1,200 +1,195 @@
-# ACM implementation steps (GitOps / Argo CD)
+# ACM implementation (GitOps / Argo CD Agent)
 
-This folder holds step-by-step notes for implementing the GitOps workflow with **Red Hat Advanced Cluster Management for Kubernetes (ACM)** and OpenShift GitOps, aligned with the manifests in this repository (`argocd-agent-multicluster-pov`).
+Step-by-step manifests for **Red Hat Advanced Cluster Management (ACM)** and OpenShift GitOps, aligned with this repository.
+
+All cluster names are **parameterized** — nothing is tied to a specific environment. Configure `ACM-implementation/clusters.env` (from `clusters.env.example`) and render templates with the scripts under `scripts/`.
 
 ## Reference documentation
 
-- [Red Hat Advanced Cluster Management for Kubernetes 2.16 — GitOps](https://docs.redhat.com/en/documentation/red_hat_advanced_cluster_management_for_kubernetes/2.16/html-single/gitops/index#enable-gitops-addon-with-argocd) — especially *Enable GitOps add-on with Argo CD* for ACM GitOps integration context.
-- [Enabling Argo CD Agent (GitOpsCluster + Placement)](https://docs.redhat.com/en/documentation/red_hat_advanced_cluster_management_for_kubernetes/2.16/html-single/gitops/index#enabling_argocd_agent) — *Placement* selects managed clusters; *GitOpsCluster* enables the GitOps add-on and Argo CD Agent toward your hub Argo CD instance.
-
-Read those sections alongside these repository-specific commands so hub configuration (operator, Argo CD instance shape) matches your ACM GitOps rollout.
+- [ACM 2.16 — GitOps](https://docs.redhat.com/en/documentation/red_hat_advanced_cluster_management_for_kubernetes/2.16/html-single/gitops/index)
+- [Enabling Argo CD Agent (GitOpsCluster + Placement)](https://docs.redhat.com/en/documentation/red_hat_advanced_cluster_management_for_kubernetes/2.16/html-single/gitops/index#enabling_argocd_agent)
+- [Argo CD Agent — agent modes](https://argocd-agent.readthedocs.io/latest/user-guide/migration/#choose-agent-operation-modes)
 
 ---
 
-## Step 1 — Install and configure the OpenShift GitOps operator (principal)
+## Choose managed vs autonomous mode
 
-Apply the Kustomize bundle under `principal/operator` on the **hub** cluster (OpenShift). It creates the `openshift-gitops-operator` namespace, an `OperatorGroup`, and a `Subscription` with environment variables that disable the default Argo CD instance and widen cluster-scoped Argo CD configuration where needed.
+| Mode | Where `Application` resources live | Hub role |
+|------|-----------------------------------|----------|
+| **managed** | Hub (`GITOPS_NAMESPACE` or `agent-managed`) | Source of truth; syncs to spokes |
+| **autonomous** | Each spoke (`openshift-gitops` or `argocd`) | Observability; spoke reconciles locally |
 
-From the **repository root** (parent of this folder):
+You can enable **one or both** modes by setting comma-separated cluster lists in `clusters.env`:
+
+```bash
+# Managed spokes only
+export MANAGED_SPOKE_CLUSTERS=workload-1,workload-2
+export AUTONOMOUS_SPOKE_CLUSTERS=
+
+# Autonomous spokes only
+export MANAGED_SPOKE_CLUSTERS=
+export AUTONOMOUS_SPOKE_CLUSTERS=edge-1
+
+# Mixed (typical PoV)
+export MANAGED_SPOKE_CLUSTERS=managed-cluster
+export AUTONOMOUS_SPOKE_CLUSTERS=autonomous-cluster
+```
+
+Each mode gets its own **Placement** and **GitOpsCluster** (`mode: managed` or `mode: autonomous` in `spec.gitopsAddon.argoCDAgent`).
+
+Hub cluster secret names must match `metadata.labels.name` on each `ManagedCluster` (values in the placement predicates).
+
+---
+
+## Repository layout
+
+```
+ACM-implementation/
+├── clusters.env.example          # Spoke names, modes, Git URLs (copy → clusters.env)
+├── managedclustersetbinding.yaml.template
+├── gitopscluster-managed.yaml.template
+├── gitopscluster-autonomous.yaml.template
+├── scripts/
+│   ├── render-placement.sh       # Placement from comma-separated cluster list
+│   ├── apply-gitopsclusters.sh   # Apply binding + placements + GitOpsClusters
+│   ├── apply-managed-test-apps.sh
+│   ├── apply-autonomous-test-app.sh
+│   └── build-allowed-namespaces.sh
+├── applications/
+│   ├── managed/                  # Hub-side (managed mode)
+│   └── autonomous/               # Spoke-side (autonomous mode)
+└── workloads/
+    ├── openshift-demo/           # Kustomize (port 8080, OpenShift-safe)
+    └── openshift-demo-helm/      # Helm variant
+```
+
+> **Do not** use `oc apply -k ACM-implementation` for GitOpsCluster resources — they are templates. Use `scripts/apply-gitopsclusters.sh`.
+
+---
+
+## Step 1 — OpenShift GitOps operator (principal)
+
+From repository root:
 
 ```bash
 oc apply -k principal/operator
-```
-
-Wait until the OpenShift GitOps operator CSV is installed and its pods are healthy, for example:
-
-```bash
-oc get csv -n openshift-gitops-operator
-oc get pods -n openshift-gitops-operator
-```
-
-**Note:** In [`subscription.yaml`](../principal/operator/subscription.yaml), adjust `spec.channel` (for example `gitops-1.20`) to a channel that exists in your cluster’s OperatorHub catalog.
-
----
-
-## Step 2 — Create the Argo CD instance (principal / control plane)
-
-The Argo CD custom resource is defined in [`argocd-principal.yaml`](../principal/argocd/argocd-principal.yaml). It targets namespace `openshift-gitops`. If the hub namespaces do not exist yet, create `openshift-gitops`, `agent-managed`, and `agent-autonomous` (see [`namespaces.yaml`](../principal/namespaces/namespaces.yaml)):
-
-```bash
 oc apply -f principal/namespaces/namespaces.yaml
 ```
 
-Then apply the Argo CD instance:
+Render and apply the Argo CD Principal CR (allowed namespaces derived from `clusters.env`):
 
 ```bash
-oc apply -f principal/argocd/argocd-principal.yaml
-```
+cp envsubst.env.example envsubst.env
+cp ACM-implementation/clusters.env.example ACM-implementation/clusters.env
+# Edit both files
 
-**Note:** Replace each **`<managed-cluster>`** in **`ARGOCD_PRINCIPAL_ALLOWED_NAMESPACES`** in that file with your spoke hub identifiers before apply (PoV example: **`a-cluster`**, **`b-cluster`**).
-
-Verify the instance and workloads:
-
-```bash
-oc get argocd -n openshift-gitops
-oc get pods -n openshift-gitops
+set -a && source envsubst.env && source ACM-implementation/clusters.env && set +a
+export ARGOCD_PRINCIPAL_ALLOWED_NAMESPACES="$(./ACM-implementation/scripts/build-allowed-namespaces.sh)"
+envsubst '${PRINCIPAL_NS} ${ARGOCD_PRINCIPAL_ALLOWED_NAMESPACES}' \
+  < principal/argocd/argocd-principal.yaml.template | oc apply -f -
 ```
 
 ---
 
-## Step 3 — Placement and GitOpsCluster (enable Argo CD Agent via ACM)
-
-Follow [Enabling Argo CD Agent](https://docs.redhat.com/en/documentation/red_hat_advanced_cluster_management_for_kubernetes/2.16/html-single/gitops/index#enabling_argocd_agent): define a **Placement** that selects your managed clusters, then a **GitOpsCluster** in the **same namespace** that references that placement and points the add-on at the hub Argo CD namespace (`openshift-gitops` here).
+## Step 2 — Placement and GitOpsCluster
 
 ### Prerequisites
 
-- Hub: Argo CD principal instance is running in `openshift-gitops` (steps 1–2).
-- **ManagedClusterSet**: your spokes must belong to the set referenced by the binding (here **`poc-acm`**). Confirm on the hub, for example:
+- Hub Argo CD principal running in `GITOPS_NAMESPACE` (default `openshift-gitops`).
+- Spokes belong to `CLUSTER_SET_NAME` (default `poc-acm`):
 
 ```bash
-# PoV example: a-cluster, b-cluster
-oc get managedcluster <managed-cluster> -o jsonpath='{.metadata.labels.cluster\.open-cluster-management\.io/clusterset}{"\n"}'
-oc get managedcluster <managed-cluster> -o jsonpath='{.metadata.labels.cluster\.open-cluster-management\.io/clusterset}{"\n"}'
+oc get managedcluster <spoke-name> -o jsonpath='{.metadata.labels.cluster\.open-cluster-management\.io/clusterset}{"\n"}'
 ```
 
-If your set name differs, change **`poc-acm`** in [`managedclustersetbinding-poc-acm.yaml`](managedclustersetbinding-poc-acm.yaml) (both `metadata.name` / `spec.clusterSet`) and in [`placement-managed-clusters.yaml`](placement-managed-clusters.yaml) under `spec.clusterSets`.
+- Each `ManagedCluster` has `metadata.labels.name` matching its entry in `MANAGED_SPOKE_CLUSTERS` / `AUTONOMOUS_SPOKE_CLUSTERS`.
 
-- **ManagedCluster labels**: the placement keeps a predicate on label **`name`** ∈ **`<managed-cluster>`** (one entry per spoke; PoV example: **`a-cluster`**, **`b-cluster`**). Ensure each `ManagedCluster` has `metadata.labels.name` set accordingly, or edit [`placement-managed-clusters.yaml`](placement-managed-clusters.yaml) (`matchExpressions` / `values`).
+### Stale `Policy` objects
 
-### Stale `Policy` objects (before deploy, restart, or validation)
-
-Red Hat support recommends inspecting **ACM `Policy`** resources (`policy.open-cluster-management.io`) on the **hub** **before** you apply GitOps manifests, **before** a full restart of the stack, and **before** you treat the Argo CD Agent setup as validated. A `Policy` from an **older** rollout than your current Argo CD Agent / GitOps alignment can cause subtle failures.
-
-1. **List policies** (use `-A` if you are unsure which namespace owns them; this repo keeps the `GitOpsCluster` in **`openshift-gitops`**):
+Before deploy or restart, list ACM policies on the hub:
 
 ```bash
-oc get policy -A
-# or, when policies are only in the GitOps namespace:
 oc get policy -n openshift-gitops
 ```
 
-2. **Compare `AGE` / creation time** with when you last installed or upgraded the hub GitOps stack, the add-on, and the Argo CD Agent. If a `Policy` is clearly **stale** relative to that setup, **delete** it. The operator/controller is expected to **recreate** a correct policy when reconciliation runs.
-
-```bash
-oc delete policy <policy-name> -n <namespace>
-```
-
-3. **Regenerate policy**: after removing stale policies, **trigger a `GitOpsCluster` reconcile** so the controller emits a fresh policy — for example by **re-applying** [`gitopscluster-argocd-agent.yaml`](gitopscluster-argocd-agent.yaml), or by following your support runbook (annotate/patch the `GitOpsCluster` to force reconciliation).
-
-Support summary: **delete outdated policies before restarting everything**, then reconcile `GitOpsCluster` so a **new** policy is generated.
+Delete stale policies, then re-run `apply-gitopsclusters.sh` to regenerate them.
 
 ### Apply
 
-From the **repository root**:
-
 ```bash
-oc apply -k ACM-implementation
-```
-
-This applies, in order, [`managedclustersetbinding-poc-acm.yaml`](managedclustersetbinding-poc-acm.yaml) (binds the set into `openshift-gitops`), [`placement-managed-clusters.yaml`](placement-managed-clusters.yaml), then [`gitopscluster-argocd-agent.yaml`](gitopscluster-argocd-agent.yaml) via [`kustomization.yaml`](kustomization.yaml).
-
-Alternatively, apply the files explicitly (same order):
-
-```bash
-oc apply -f ACM-implementation/managedclustersetbinding-poc-acm.yaml
-oc apply -f ACM-implementation/placement-managed-clusters.yaml
-oc apply -f ACM-implementation/gitopscluster-argocd-agent.yaml
+chmod +x ACM-implementation/scripts/*.sh
+set -a && source envsubst.env && source ACM-implementation/clusters.env && set +a
+./ACM-implementation/scripts/apply-gitopsclusters.sh
 ```
 
 ### Verify
 
 ```bash
-oc get managedclustersetbinding -n openshift-gitops
-oc get placement placement-managed-clusters -n openshift-gitops -o jsonpath='{.status.conditions[?(@.type=="PlacementSatisfied")]}'
-echo
-```
-
-When placement is healthy, `PlacementSatisfied` should report **`status":"True"`**, **`reason":"AllDecisionsScheduled"`**, and **`message":"All cluster decisions scheduled"`**. Example:
-
-```json
-{"lastTransitionTime":"2026-04-23T16:45:36Z","message":"All cluster decisions scheduled","reason":"AllDecisionsScheduled","status":"True","type":"PlacementSatisfied"}
-```
-
-Then confirm decisions and GitOps:
-
-```bash
-oc get placementdecision -n openshift-gitops -l cluster.open-cluster-management.io/placement=placement-managed-clusters -o yaml
-oc get gitopscluster gitops-agent-clusters -n openshift-gitops -o jsonpath='{.status.conditions}' | jq
-```
-
-Use the same **`-n …`** as `metadata.namespace` on your `GitOpsCluster` resource (these manifests use **`openshift-gitops`**).
-
-#### Placement still `PlacementSatisfied=False`
-
-If you see **`reason":"NoManagedClusterMatched"`** and **`message":"No ManagedCluster matches any of the cluster predicate"`**, no cluster in the bound cluster set passed every predicate. Typical fixes:
-
-- Confirm **`ManagedClusterSetBinding`** exists and **`spec.clusterSet`** matches the set your clusters use (`oc get managedcluster <name> -o jsonpath='{.metadata.labels.cluster\.open-cluster-management\.io/clusterset}{"\n"}'`).
-- Align **`spec.clusterSets`** on the `Placement` with that set name (here **`poc-acm`**).
-- Align the **label predicate** (`metadata.labels.name` with values **`<managed-cluster>`** — PoV example: **`a-cluster`** / **`b-cluster`**) with the real labels on each `ManagedCluster`, or edit [`placement-managed-clusters.yaml`](placement-managed-clusters.yaml).
-
-If the controller does not populate the agent principal address and you need to override it (see the documentation for `serverAddress` / `serverPort` under `spec.gitopsAddon.argoCDAgent`), patch the `GitOpsCluster` after checking your Argo CD Agent principal Route hostname, for example:
-
-```bash
-oc get route -n openshift-gitops
+oc get gitopscluster -n openshift-gitops
+oc get placement -n openshift-gitops
+oc get placementdecision -n openshift-gitops
 ```
 
 ---
 
-## Step 4 — Deploy a sample Application to managed cluster `<managed-cluster>`
+## Step 3 — Deploy test Applications
 
-After the GitOps add-on and Argo CD Agent are healthy, deploy the **guestbook** example from [argoproj/argocd-example-apps](https://github.com/argoproj/argocd-example-apps) to spoke **`<managed-cluster>`** (PoV example: **`a-cluster`**).
+OpenShift-compatible workloads (no Apache port 80): `ACM-implementation/workloads/openshift-demo`.
 
-### Where the `Application` lives on the hub
-
-The `Application` is defined in namespace **`openshift-gitops`** (same namespace as the hub Argo CD instance). That namespace must appear under **`spec.sourceNamespaces`** on the hub Argo CD CR — see [`principal/argocd/argocd-principal.yaml`](../principal/argocd/argocd-principal.yaml).
-
-The manifest uses **`project: managed-clusters-project`**. That `AppProject` must exist on the hub (ACM GitOps often creates it; if `oc apply` fails with an unknown project, create the `AppProject` or change `spec.project` to one that exists).
-
-### Apply
-
-Set **`PRINCIPAL_ROUTE_HOST`** to the Argo CD Agent **principal** Route hostname only (no `https://`, no `:443`) — copy from [`envsubst.env.example`](../envsubst.env.example) into `envsubst.env`, then:
+### Managed mode (hub)
 
 ```bash
-oc config use-context principal
-set -a && [ -f envsubst.env ] && . envsubst.env && set +a
-envsubst '${PRINCIPAL_ROUTE_HOST}' < ACM-implementation/applications/guestbook-managed-cluster.yaml | oc apply -f -
+set -a && source envsubst.env && source ACM-implementation/clusters.env && set +a
+./ACM-implementation/scripts/apply-managed-test-apps.sh
 ```
 
-Replace **`<managed-cluster>`** in the manifest with your hub cluster secret name before apply if needed (PoV example: **`a-cluster`**). This expands `destination.server` to `https://<PRINCIPAL_ROUTE_HOST>/?agentName=<managed-cluster>` (agent routing to that managed cluster). Adjust `agentName` in the YAML if your hub cluster secret name differs.
+First managed spoke uses Kustomize; additional spokes use Helm (same demo, different packaging).
+
+Optional **ApplicationSet** for all managed spokes:
+
+```bash
+envsubst '${GITOPS_NAMESPACE} ${GIT_REPO_URL} ${GIT_TARGET_REVISION} ${WORKLOAD_PATH_KUSTOMIZE} ${MANAGED_DEMO_NAMESPACE}' \
+  < ACM-implementation/applications/managed/applicationset-openshift-demo.yaml.template | oc apply -f -
+```
+
+### Autonomous mode (spoke)
+
+On each autonomous spoke:
+
+```bash
+set -a && source envsubst.env && source ACM-implementation/clusters.env && set +a
+export ARGOCD_NAMESPACE=openshift-gitops   # ACM add-on default; use argocd for manual PoV
+oc config use-context <autonomous-spoke>
+./ACM-implementation/scripts/apply-autonomous-test-app.sh <spoke-name>
+```
 
 ### Verify
 
-On the **hub**:
-
 ```bash
-oc get application guestbook -n openshift-gitops -o yaml
+# Hub — managed apps
+oc get application -n openshift-gitops -l test.argocd-agent-pov/mode=managed
+
+# Spoke — workloads
+oc get deploy,svc -n demo-managed --context <managed-spoke>
+oc get deploy,svc -n demo-autonomous --context <autonomous-spoke>
 ```
-
-On the **managed cluster** **`<managed-cluster>`** (PoV example: **`a-cluster`**) after a successful sync (workloads go to **`guestbook-deploy`** on the spoke):
-
-```bash
-oc get deploy,svc -n guestbook-deploy --context <managed-cluster>
-```
-
-Ensure namespace **`guestbook-deploy`** exists on the spoke or that Argo CD / the `AppProject` allows creating it, and that **`managed-clusters-project`** permits the destination.
 
 ---
 
-## Next steps (ACM GitOps)
+## Manual template rendering (single spoke)
 
-Additional steps (PKI outside ACM, Application placement, spoke tuning) may still live in the main [`README.md`](../README.md) walkthrough. Keep the [ACM 2.16 GitOps guide](https://docs.redhat.com/en/documentation/red_hat_advanced_cluster_management_for_kubernetes/2.16/html-single/gitops/index#enable-gitops-addon-with-argocd) open while you iterate on add-on and agent behaviour.
+Managed demo with ACM `AppProject` and agent routing:
+
+```bash
+export SPOKE_CLUSTER_NAME=<spoke-name>
+export TARGET_NAMESPACE=demo-managed
+export WORKLOAD_PATH=ACM-implementation/workloads/openshift-demo
+envsubst '${PRINCIPAL_ROUTE_HOST} ${SPOKE_CLUSTER_NAME} ${GIT_REPO_URL} ${GIT_TARGET_REVISION} ${WORKLOAD_PATH} ${GITOPS_NAMESPACE} ${TARGET_NAMESPACE}' \
+  < ACM-implementation/applications/managed/demo-managed-spoke.yaml.template | oc apply -f -
+```
+
+---
+
+## Next steps
+
+PKI, Helm agent install without ACM, and non-ACM validation paths are in the main [`README.md`](../README.md). Keep the [ACM GitOps guide](https://docs.redhat.com/en/documentation/red_hat_advanced_cluster_management_for_kubernetes/2.16/html-single/gitops/index) open while iterating on add-on and agent behaviour.

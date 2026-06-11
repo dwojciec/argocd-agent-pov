@@ -1,20 +1,43 @@
-# Applications de test — managed vs autonomous
+# Test Applications — managed vs autonomous
 
-Les manifests suivants déploient la même démo **légère** ([`helm-guestbook`](https://github.com/argoproj/argocd-example-apps/tree/master/helm-guestbook) dans [argoproj/argocd-example-apps](https://github.com/argoproj/argocd-example-apps)) : un chart Helm minimal (une `Deployment` + `Service`), adapté à un test de bout en bout sans bruit inutile.
+OpenShift-compatible demo workloads live under `ACM-implementation/workloads/` (`nginx-unprivileged` on port **8080**, no privileged binding).
 
-| Mode | Fichier | Où appliquer | Rôle |
-|------|---------|--------------|------|
-| **Managed** | `principal/applications/sample-application-managed-cluster1.yaml` | Contexte **principal** | Source de vérité sur le hub ; sync vers **managed-cluster** via `destination.name: managed-cluster` |
-| **Autonomous** | `autonomous-cluster/applications/sample-application-autonomous-cluster2.yaml` | Contexte **autonomous-cluster** | Source de vérité sur le spoke ; `destination.server: https://kubernetes.default.svc` |
+| Mode | Manifest | Where to apply | Source of truth |
+|------|----------|----------------|-----------------|
+| **Managed** (no ACM) | `principal/applications/sample-application-managed-cluster1.yaml.template` | **Principal** hub | Hub (`agent-managed` namespace) |
+| **Managed** (ACM) | `ACM-implementation/applications/managed/test-app-openshift-demo.yaml.template` | **Principal** hub | Hub (`GITOPS_NAMESPACE`) |
+| **Autonomous** (no ACM) | `autonomous-cluster/applications/sample-application-autonomous-cluster2.yaml.template` | **Autonomous spoke** | Spoke (`argocd` namespace) |
+| **Autonomous** (ACM) | `ACM-implementation/applications/autonomous/test-app-openshift-demo.yaml.template` | **Autonomous spoke** | Spoke (`openshift-gitops` or `ARGOCD_NAMESPACE`) |
 
-## Critères de réussite rapides
+Configure cluster names and modes in `ACM-implementation/clusters.env` (from `clusters.env.example`).
 
-1. **Managed (principal → managed-cluster)**  
-   - Sur le principal : `oc get application sample-managed-demo -n managed-cluster` → `Synced` / `Healthy`.  
-   - Sur managed-cluster : `oc get deploy,svc -n default` → ressources `helm-guestbook` présentes (noms dépendant du chart).
+## Quick success criteria
 
-2. **Autonomous (autonomous-cluster → visible hub)**  
-   - Sur autonomous-cluster : `oc get application sample-autonomous-demo -n argocd` → `Synced` / `Healthy`.  
-   - Sur le principal (UI ou CLI) : l’application apparaît pour observation selon le mode autonomous (voir doc produit).
+1. **Managed (hub → spoke)**  
+   - Hub: `Application` **Synced** / **Healthy**.  
+   - Spoke: `oc get deploy,svc -n <demo-namespace>` → `demo-app` **Running**.
 
-Si vous préférez l’exemple **Kustomize** « guestbook » classique (plus de ressources), remplacez dans les `Application` : `path: helm-guestbook` par `path: guestbook`.
+2. **Autonomous (spoke → visible on hub)**  
+   - Spoke: `Application` **Synced** / **Healthy**.  
+   - Hub UI: application visible for observability (autonomous mode).
+
+## Render and apply (templates)
+
+```bash
+cp envsubst.env.example envsubst.env
+cp ACM-implementation/clusters.env.example ACM-implementation/clusters.env
+# Edit both files for your environment
+
+set -a && source envsubst.env && source ACM-implementation/clusters.env && set +a
+export ARGOCD_PRINCIPAL_ALLOWED_NAMESPACES="$(./ACM-implementation/scripts/build-allowed-namespaces.sh)"
+export MANAGED_SPOKE_CLUSTER="${MANAGED_SPOKE_CLUSTER:-$(echo "$MANAGED_SPOKE_CLUSTERS" | cut -d, -f1)}"
+
+# Non-ACM managed demo (principal)
+envsubst < principal/applications/sample-application-managed-cluster1.yaml.template | oc apply -f -
+
+# Non-ACM autonomous demo (autonomous spoke context)
+export ARGOCD_NAMESPACE=argocd
+envsubst < autonomous-cluster/applications/sample-application-autonomous-cluster2.yaml.template | oc apply -f -
+```
+
+ACM path: see [`ACM-implementation/README.md`](../ACM-implementation/README.md).

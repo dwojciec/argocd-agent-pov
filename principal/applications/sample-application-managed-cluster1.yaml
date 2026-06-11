@@ -1,21 +1,24 @@
-# Application « managed » : à appliquer sur le cluster PRINCIPAL uniquement.
-# Le champ destination.name doit correspondre au nom du secret cluster (cluster-managed-cluster → name: managed-cluster).
-# Démo minimale : chart helm-guestbook (https://github.com/argoproj/argocd-example-apps/tree/master/helm-guestbook).
+# Managed-mode demo — apply on PRINCIPAL. Prefer sample-application-managed-cluster1.yaml.template
+# with envsubst (OpenShift-compatible workload). See docs/validation-applications.md.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
   name: sample-managed-demo
-  namespace: managed-cluster
+  namespace: agent-managed
+  labels:
+    test.argocd-agent-pov/mode: managed
 spec:
   project: default
   destination:
     name: managed-cluster
-    namespace: default
+    namespace: demo-managed
   source:
-    repoURL: https://github.com/argoproj/argocd-example-apps
-    path: guestbook
-    targetRevision: HEAD
+    repoURL: https://github.com/dwojciec/argocd-agent-pov.git
+    path: ACM-implementation/workloads/openshift-demo
+    targetRevision: main
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

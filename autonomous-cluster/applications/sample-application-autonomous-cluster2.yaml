@@ -1,21 +1,24 @@
-# Application « autonomous » : à appliquer sur le cluster AUTONOMOUS uniquement.
-# destination.server pointe vers l’API Kubernetes locale du spoke.
-# Même démo minimale que le managed : helm-guestbook.
+# Autonomous-mode demo — apply on AUTONOMOUS spoke only. Prefer .yaml.template with envsubst.
+# See docs/validation-applications.md and ACM-implementation/applications/autonomous/.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
   name: sample-autonomous-demo
   namespace: argocd
+  labels:
+    test.argocd-agent-pov/mode: autonomous
 spec:
   project: default
   destination:
     server: https://kubernetes.default.svc
-    namespace: default
+    namespace: demo-autonomous
   source:
-    repoURL: https://github.com/argoproj/argocd-example-apps
-    path: helm-guestbook
-    targetRevision: HEAD
+    repoURL: https://github.com/dwojciec/argocd-agent-pov.git
+    path: ACM-implementation/workloads/openshift-demo
+    targetRevision: main
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

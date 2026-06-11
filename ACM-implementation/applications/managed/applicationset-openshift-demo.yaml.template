@@ -1,0 +1,37 @@
+# Optional: deploy the same demo to all managed spokes selected by a Placement (managed mode).
+# Requires AppProject allowing the destinations. Render with envsubst then apply on hub.
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: demo-managed-all-spokes
+  namespace: ${GITOPS_NAMESPACE}
+  labels:
+    test.argocd-agent-pov/mode: managed
+spec:
+  generators:
+    - clusterDecisionResource:
+        configMapRef: acm-placement
+        labelSelector:
+          matchLabels:
+            cluster.open-cluster-management.io/placement: placement-managed-spokes
+        requeueAfterSeconds: 30
+  template:
+    metadata:
+      name: demo-managed-{{name}}
+      labels:
+        test.argocd-agent-pov/mode: managed
+    spec:
+      project: default
+      source:
+        repoURL: ${GIT_REPO_URL}
+        targetRevision: ${GIT_TARGET_REVISION}
+        path: ${WORKLOAD_PATH_KUSTOMIZE}
+      destination:
+        name: "{{name}}"
+        namespace: ${MANAGED_DEMO_NAMESPACE}
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
